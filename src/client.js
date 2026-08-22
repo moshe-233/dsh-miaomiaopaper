@@ -58,6 +58,8 @@ const DEFAULTS = {
   border: 0.35,
   blur: 16,
   wallpaperBlur: 0,
+  volume: 50,
+  muted: false,
   rotationEnabled: false,
   rotationInterval: 30,
   rotationGroupId: "",
@@ -177,6 +179,8 @@ function sanitizeSettings(o) {
     border: clampNum(o.border, 0, 1, DEFAULTS.border),
     blur: clampNum(o.blur, 0, 60, DEFAULTS.blur),
     wallpaperBlur: clampNum(o.wallpaperBlur, 0, 60, DEFAULTS.wallpaperBlur),
+    volume: clampNum(o.volume, 0, 100, DEFAULTS.volume),
+    muted: o.muted === true,
     rotationEnabled: o.rotationEnabled === true,
     rotationGroupId: typeof o.rotationGroupId === "string" ? o.rotationGroupId : "",
     rotationGroups: readRotationGroups(o.rotationGroups),
@@ -267,6 +271,8 @@ function serializeSelection() {
     border: selection.border,
     blur: selection.blur,
     wallpaperBlur: selection.wallpaperBlur,
+    volume: selection.volume,
+    muted: selection.muted,
     rotationEnabled: selection.rotationEnabled,
     rotationGroupId: selection.rotationGroupId,
     rotationGroups: selection.rotationGroups,
@@ -845,11 +851,11 @@ function buildMedia(sel) {
     media.src = sel.url;
     media.autoplay = true;
     media.loop = true;
-    media.muted = true;
+    media.muted = sel.muted === true;
+    try { media.volume = Math.max(0, Math.min(1, (sel.volume ?? 50) / 100)); } catch { /* ignore */ }
     media.setAttribute("playsinline", "");
     media.className = "we-media" + fitClass;
-    // Native playbackRate — hardware-decoded, instant, no reload (and the
-    // videos are muted anyway, so there is no audio to keep in sync).
+    // Native playbackRate — hardware-decoded, instant, no reload
     try { media.playbackRate = sel.playbackRate; } catch { /* ignore */ }
   } else if (isStill) {
     media.src = sel.url;
@@ -892,6 +898,10 @@ function syncLayers() {
     if (video) {
       if (selection.playing) { try { video.play().catch(() => {}); } catch {} }
       else video.pause();
+      try {
+        video.muted = selection.muted === true;
+        video.volume = Math.max(0, Math.min(1, (selection.volume ?? 50) / 100));
+      } catch { /* ignore */ }
       // Keep the rate in sync on every layer sync (covers rate changes while
       // the same wallpaper keeps playing — instant, no media reload).
       try { if (video.playbackRate !== selection.playbackRate) video.playbackRate = selection.playbackRate; } catch { /* ignore */ }
@@ -1127,6 +1137,18 @@ function WallpaperPicker() {
   const onBorder = (pct) => { selection.border = pct / 100; persistSelection(); applyEffects(); emit(); };
   const onBlur = (px) => { selection.blur = px; persistSelection(); applyEffects(); emit(); };
   const onWallpaperBlur = (px) => { selection.wallpaperBlur = px; persistSelection(); applyEffects(); emit(); };
+  const onVolume = (vol) => {
+    selection.volume = clampNum(vol, 0, 100, 50);
+    persistSelection();
+    syncLayers();
+    emit();
+  };
+  const onToggleMute = () => {
+    selection.muted = !selection.muted;
+    persistSelection();
+    syncLayers();
+    emit();
+  };
   // 配色 (accent color) + 玻璃透明度 (glass transparency) + 玻璃颜色 (glass base
   // tint): applied instantly through applyEffects() (--we-accent /
   // --we-glass-alpha / --we-glass-color), persisted so the settings page keeps
@@ -1846,6 +1868,16 @@ function WallpaperPicker() {
       SliderRow("暗化", 0, 90, 5, Math.round(sel.scrim * 100), onScrim, Math.round(sel.scrim * 100) + "%"),
       SliderRow("边框", 0, 90, 5, Math.round(sel.border * 100), onBorder, Math.round(sel.border * 100) + "%"),
       SliderRow("玻璃", 0, 60, 1, sel.blur, onBlur, sel.blur + "px"),
+      // 音量与静音控制（仅限视频壁纸）
+      sel.type === "video" && SliderRow("音量", 0, 100, 5, sel.volume ?? 50, onVolume, (sel.muted ? "静音 " : "") + (sel.volume ?? 50) + "%"),
+      sel.type === "video" && React.createElement("label", { className: "we-picker__rotation-toggle" },
+        React.createElement("input", {
+          type: "checkbox",
+          checked: sel.muted === true,
+          onChange: onToggleMute,
+        }),
+        "壁纸静音",
+      ),
       // Playback speed — native playbackRate, instant, no media reload. Video
       // wallpapers only (web/iframe wallpapers have no playbackRate).
       sel.type === "video" && React.createElement("div", { className: "we-picker__row" },
