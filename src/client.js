@@ -2271,12 +2271,12 @@ function WallpaperPicker() {
       React.createElement("option", { value: "" }, groups.length ? "— 选择轮播列表 —" : "— 暂无轮播列表 —"),
       ...groups.map((g) => React.createElement("option", {
         key: g.id, value: g.id,
-      }, (g.videoOnly ? "▶ " : "") + g.name + "（" + groupWallpapers(g).length + " 可播放" + (g.videoOnly ? "" : " · " + g.interval + " 分钟") + "）")),
+      }, (g.videoOnly ? "▶ [视频] " : "[壁纸] ") + g.name + "（" + groupWallpapers(g).length + " 可播放" + (g.videoOnly ? "" : " · " + g.interval + " 分钟") + "）")),
       ),
       React.createElement("button", {
         className: "we-picker__btn", type: "button",
         onClick: () => startCreateGroup(false),
-      }, "新建"),
+      }, "新建壁纸列表"),
       React.createElement("button", {
         className: "we-picker__btn", type: "button",
         onClick: () => startCreateGroup(true),
