@@ -183,12 +183,13 @@ function readRotationGroups(raw) {
       id,
       name: typeof g.name === "string" && g.name.trim() ? g.name.trim() : "轮播列表",
       interval: clampNum(g.interval, 1, 1440, DEFAULTS.rotationInterval),
-      order: g.order === "random" ? "random" : "sequence",
+      // Video-only lists use three modes: "sequence" (ordered, wraps at tail),
+      // "loop" (repeat ONE video forever), "random" (next = random pick,
+      // prev = step back). Regular timer lists keep sequence|random.
+      order: g.order === "random" ? "random" : g.order === "loop" ? "loop" : "sequence",
       // videoOnly lists accept ONLY video wallpapers and switch on video end
       // (or manual prev/next from the FAB) instead of the minute timer.
-      // loop: wrap around at the tail instead of stopping (default true).
       videoOnly: g.videoOnly === true,
-      loop: g.loop !== false,
       wallpaperIds: Array.isArray(g.wallpaperIds)
         ? g.wallpaperIds.filter((x) => typeof x === "string" && x)
         : [],
@@ -637,37 +638,56 @@ function nextGroupId() {
   return "grp-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
 }
 
-// Order modes: "sequence" (timer-based, stop at end), "random" (timer-based,
-// random pick) and "loop" (video-only lists: play through in order and wrap
-// around — switching is driven by video end / manual prev-next, not a timer).
-function nextRotationWallpaper() {
+// Video-only list modes (group.order):
+//   "sequence" — ordered playback, wrapping at the tail back to the head;
+//   "loop"     — repeat the CURRENT video forever (next stays on it);
+//   "random"   — NEXT picks a random other entry, PREV steps one back.
+// Regular timer lists keep the original sequence|random behavior.
+function nextRotationWallpaper(manual) {
   const list = rotationCandidates();
   if (list.length === 0) return null;
   const group = activeRotationGroup();
-  const isLoop = Boolean(group && group.videoOnly && group.loop !== false);
+  if (group && group.videoOnly) {
+    if (list.length === 1) return manual ? null : list[0];
+    if (group.order === "loop") {
+      // Single-video repeat: "next" keeps the current video playing.
+      return list.find((w) => w.id === selection.id) || list[0];
+    }
+    if (group.order === "random") {
+      // Random pick for auto-advance AND manual next.
+      const candidates = list.filter((w) => w.id !== selection.id);
+      return candidates[Math.floor(Math.random() * candidates.length)] || null;
+    }
+    // sequence: walk in order, wrap at the tail.
+    const current = list.findIndex((w) => w.id === selection.id);
+    return list[(current + 1 + list.length) % list.length] || null;
+  }
   if (group && group.order === "random" && list.length >= 2) {
     const candidates = list.filter((w) => w.id !== selection.id);
     return candidates[Math.floor(Math.random() * candidates.length)] || null;
   }
-  // loop: single entry replays itself; multi-entry walks in order, wrapping
-  // at the tail. Regular (timer) lists keep the original wrap-around
-  // sequence; a video-only list in "sequence" order stops at the tail.
-  if (isLoop) {
-    const current = list.findIndex((w) => w.id === selection.id);
-    return list[(current + 1) % list.length] || list[0];
-  }
   if (list.length < 2) return null;
   const current = list.findIndex((w) => w.id === selection.id);
-  if (group && group.videoOnly) {
-    const nextIdx = current + 1;
-    return nextIdx < list.length ? list[nextIdx] : null;
-  }
   return list[(current + 1 + list.length) % list.length] || null;
 }
 
+// Manual-only. Video-only lists: random mode's PREV steps ONE BACK through
+// the list (deterministic), loop replays, sequence walks backwards with wrap.
 function prevRotationWallpaper() {
   const list = rotationCandidates();
   if (list.length < 1) return null;
+  const group = activeRotationGroup();
+  if (group && group.videoOnly) {
+    if (group.order === "random") {
+      // Deterministic step-back: the entry before the current one.
+      const current = list.findIndex((w) => w.id === selection.id);
+      return list[(current - 1 + list.length) % list.length] || null;
+    }
+    // sequence / loop: step back in order (loop replays the same single entry).
+    const current = list.findIndex((w) => w.id === selection.id);
+    return list[(current - 1 + list.length) % list.length] || null;
+  }
+  if (list.length < 2) return null;
   const current = list.findIndex((w) => w.id === selection.id);
   return list[(current - 1 + list.length) % list.length] || null;
 }
@@ -712,7 +732,8 @@ function startCreateGroup(videoOnly) {
     id: nextGroupId(),
     name: (videoOnly ? "视频列表 " : "轮播列表 ") + (selection.rotationGroups.length + 1),
     interval: DEFAULTS.rotationInterval,
-    order: "sequence",
+    // videoOnly lists default to sequence (ordered, wrapping).
+    order: videoOnly ? "sequence" : "sequence",
     videoOnly: videoOnly === true,
     wallpaperIds: [],
   };
@@ -727,10 +748,8 @@ function saveEditingGroup() {
     id: draft.id,
     name: typeof draft.name === "string" && draft.name.trim() ? draft.name.trim() : "轮播列表",
     interval: clampNum(draft.interval, 1, 1440, DEFAULTS.rotationInterval),
-    order: draft.order === "random" ? "random" : "sequence",
-    // videoOnly + loop: advance on video end and wrap around at the tail.
+    order: draft.order === "random" ? "random" : draft.order === "loop" ? "loop" : "sequence",
     videoOnly: draft.videoOnly === true,
-    loop: draft.loop !== false,
     wallpaperIds: Array.isArray(draft.wallpaperIds)
       ? draft.wallpaperIds.filter((x) => typeof x === "string" && x)
       : [],
@@ -962,7 +981,10 @@ function buildMedia(sel) {
     // Video-only rotation lists advance on video END (loop mode replays the
     // list in order); everything else loops a single video forever.
     const activeGroup = activeRotationGroup();
-    media.loop = !(selection.rotationEnabled && activeGroup && activeGroup.videoOnly);
+    // "loop" = repeat the CURRENT video: native loop handles it, no JS needed.
+    const isSingleLoop = selection.rotationEnabled && activeGroup
+      && activeGroup.videoOnly && activeGroup.order === "loop";
+    media.loop = !(selection.rotationEnabled && activeGroup && activeGroup.videoOnly) || isSingleLoop;
     if (!media.loop) {
       media.addEventListener("ended", () => {
         if (!selection.rotationEnabled) return;
@@ -1139,7 +1161,7 @@ function refreshFloatingOrbState() {
   }
   if (badge) {
     const modeTag = group && group.videoOnly
-      ? (group.order === "random" ? " 随机" : group.loop !== false ? " 循环" : " 顺序") : "";
+      ? (group.order === "random" ? " 随机" : group.order === "loop" ? " 单曲循环" : " 顺序") : "";
     badge.textContent = group ? group.name + (modeTag ? " ·" + modeTag : "") + " (" + candidates.length + ")" : "";
     badge.style.display = group ? "" : "none";
   }
@@ -1192,7 +1214,7 @@ function renderOrbContent(container) {
       groupBadge.dataset.weFabBadge = "";
       groupBadge.className = "we-fab__menu-badge";
       const modeTag = group.videoOnly
-        ? (group.order === "random" ? " · 随机" : group.loop !== false ? " · 循环" : " · 顺序") : "";
+        ? (group.order === "random" ? " · 随机" : group.order === "loop" ? " · 单曲循环" : " · 顺序") : "";
       groupBadge.textContent = group.name + modeTag + " (" + candidates.length + ")";
       head.appendChild(groupBadge);
     }
@@ -1248,8 +1270,8 @@ function renderOrbContent(container) {
     nextBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>';
     nextBtn.onclick = (e) => {
       e.stopPropagation();
-      const next = nextRotationWallpaper();
-      if (next) {
+      const next = nextRotationWallpaper(true);
+      if (next && next.id !== selection.id) {
         preserveFloatingOrbOnNextSync = true;
         applySelection(next.id);
       }
@@ -2276,17 +2298,12 @@ function WallpaperPicker() {
             React.createElement("span", { className: "we-picker__hint we-picker__label" }, "播放方式"),
             React.createElement("select", {
               className: "we-picker__playlist-select",
-              value: String(editing.order === "random" ? "random" : (editing.loop !== false ? "loop" : "sequence")),
-              onChange: (e) => {
-                const v = e.target.value;
-                if (v === "random") { editing.order = "random"; }
-                else { editing.order = "sequence"; editing.loop = v === "loop"; }
-                emit();
-              },
+              value: editing.order,
+              onChange: (e) => { editing.order = e.target.value; emit(); },
             },
-            React.createElement("option", { value: "loop" }, "循环（播完自动下一首，到尾回到开头）"),
-            React.createElement("option", { value: "sequence" }, "顺序（播完按列表走一遍）"),
-            React.createElement("option", { value: "random" }, "随机（每次随机挑一张）"),
+            React.createElement("option", { value: "sequence" }, "顺序播放（从头到尾，尾后回到头继续）"),
+            React.createElement("option", { value: "loop" }, "循环播放（当前视频单曲循环）"),
+            React.createElement("option", { value: "random" }, "随机播放（下一首随机挑，上一首回退）"),
             ),
           )
         : React.createElement("div", { className: "we-picker__row" },
@@ -2380,7 +2397,7 @@ function WallpaperPicker() {
       ),
       group && group.videoOnly
         ? React.createElement("span", { className: "we-picker__hint" },
-            "视频播完自动切换" + (group.order === "random" ? " · 随机" : group.loop !== false ? " · 循环" : " · 顺序"))
+            "视频播完自动切换" + (group.order === "random" ? " · 随机" : group.order === "loop" ? " · 单曲循环" : " · 顺序"))
         : React.createElement("select", {
         className: "we-picker__rotation-interval",
         value: String(group ? group.interval : DEFAULTS.rotationInterval),
