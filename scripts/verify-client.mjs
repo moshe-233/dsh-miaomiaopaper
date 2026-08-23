@@ -201,6 +201,9 @@ setTimeout(() => {
       console.log('玻璃 slider max (expect 60):', sliderMax);
       console.log('whole-window glass master switch present:', treeText.includes('设置窗口液态玻璃'));
       console.log('window glass hint present:', treeText.includes('整个设置窗口'));
+      console.log('floating orb master switch present:', treeText.includes('悬浮快捷球'));
+      console.log('floating orb position select present:', treeText.includes('悬浮球屏幕固定位置'));
+      console.log('startup default wallpaper setting present:', treeText.includes('启动默认壁纸'));
       // The thumbnail grid lives inside the picker MODAL now (settings page
       // shows only the summary + "选择壁纸" trigger). Open the modal by
       // invoking the trigger button's onClick, re-render, then count cards.

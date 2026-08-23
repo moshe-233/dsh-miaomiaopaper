@@ -48,12 +48,25 @@ const INVENTORY_URL = "/wallpaper-engine/inventory";
 const ACTIVE_ATTR = "data-we-wallpaper";
 const LAYER_ID = "dsh-wallpaper-engine-layer";
 const SCRIM_ID = "dsh-wallpaper-engine-scrim";
+const FAB_ID = "dsh-wallpaper-engine-fab";
+let preserveFloatingOrbOnNextSync = false;
+let inventoryReady = false;
+let inventoryRetryTimer = null;
+let clientDisposed = false;
+let pagehideHandler = null;
+
+function setInventoryState(state) {
+  if (typeof document !== "undefined" && document.body) {
+    document.body.dataset.weWallpaperInventory = state;
+  }
+}
 
 // ── Defaults ─────────────────────────────────────────────────────────────────
 // scrim default is intentionally LOW now: iOS liquid glass needs the wallpaper
 // colour to pass through the glass, so we no longer crush it behind a near-black
 // scrim. Users can raise it back via the 暗化 slider for busy wallpapers.
 const DEFAULTS = {
+  defaultId: "",
   scrim: 0.25,
   border: 0.35,
   blur: 16,
@@ -108,12 +121,18 @@ const DEFAULTS = {
   glassAlpha: 12,
   glassColor: "#ffffff",
   glassWindow: true,
+  // Floating quick-control button (FAB):
+  // - fabEnabled: master switch for the floating action orb on the main screen
+  // - fabPosition: position anchor on screen ("bottom-right" | "bottom-left" | "top-right" | "top-left")
+  fabEnabled: true,
+  fabPosition: "bottom-right",
 };
 
 // Selectable values for the two filters. Declared up top because
 // readPersisted() validates against them at module load (const TDZ).
 const RATING_VALUES = ["all", "everyone", "pg13", "mature", "unrated"];
 const TYPE_VALUES = ["all", "video", "web", "image", "scene"];
+const FAB_POSITIONS = ["bottom-right", "bottom-left", "top-right", "top-left"];
 
 // 配色 presets for the settings-page liquid-glass theme. The accent drives
 // buttons/sliders/selected cards/badges and the glass sheen via --we-accent;
@@ -175,6 +194,7 @@ function sanitizeSettings(o) {
   if (!o || typeof o !== "object") return { id: "", ...DEFAULTS };
   return {
     id: typeof o.id === "string" ? o.id : "",
+    defaultId: typeof o.defaultId === "string" ? o.defaultId : DEFAULTS.defaultId,
     scrim: clampNum(o.scrim, 0, 1, DEFAULTS.scrim),
     border: clampNum(o.border, 0, 1, DEFAULTS.border),
     blur: clampNum(o.blur, 0, 60, DEFAULTS.blur),
@@ -203,6 +223,8 @@ function sanitizeSettings(o) {
     glassColor: typeof o.glassColor === "string" && /^#[0-9a-f]{6}$/i.test(o.glassColor)
       ? o.glassColor : DEFAULTS.glassColor,
     glassWindow: o.glassWindow !== false,
+    fabEnabled: o.fabEnabled !== false,
+    fabPosition: FAB_POSITIONS.includes(o.fabPosition) ? o.fabPosition : DEFAULTS.fabPosition,
   };
 }
 
@@ -228,6 +250,8 @@ const selection = {
   // Draft of the rotation group currently being created/edited in the picker
   // (null when the editor is closed). Mutated live; committed on 保存.
   editing: null,
+  // Transient FAB menu open state (true when quick menu expanded)
+  fabMenuOpen: false,
   // Transient picker UI state (NOT persisted): batch hide/restore selection
   // mode, the open/closed state of the wallpaper picker MODAL and its active
   // view ("normal" | "hidden"). The hidden section used to be inline; it now
@@ -249,6 +273,7 @@ const selection = {
   uploadDirDraft: "",
   inventory: { installDir: null, uploadDir: null, wallpapers: [], total: 0, portableCount: 0, playlists: [], error: null },
   loaded: false,
+  hasAppliedStartupDefault: false,
 };
 
 const listeners = new Set();
@@ -267,6 +292,7 @@ function useStore() {
 function serializeSelection() {
   return {
     id: selection.id,
+    defaultId: selection.defaultId,
     scrim: selection.scrim,
     border: selection.border,
     blur: selection.blur,
@@ -288,6 +314,8 @@ function serializeSelection() {
     glassAlpha: selection.glassAlpha,
     glassColor: selection.glassColor,
     glassWindow: selection.glassWindow,
+    fabEnabled: selection.fabEnabled,
+    fabPosition: selection.fabPosition,
   };
 }
 
@@ -316,17 +344,6 @@ async function pushPersisted() {
       keepalive: true, // let a pending flush survive pagehide/close
     });
   } catch { /* host unreachable: the localStorage cache remains the fallback */ }
-}
-
-// Flush a pending write when the page goes away (tab close / navigate).
-if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
-  window.addEventListener("pagehide", () => {
-    if (persistTimer && typeof window.clearTimeout === "function") {
-      window.clearTimeout(persistTimer);
-      persistTimer = null;
-      pushPersisted();
-    }
-  });
 }
 
 function persistSelection() {
@@ -368,11 +385,14 @@ async function loadPersisted() {
     Object.assign(selection, readPersisted());
   }
 
+  if (clientDisposed) return;
   applyEffects();
   emit();
 }
 
 async function loadInventory() {
+  if (clientDisposed) return;
+  setInventoryState("loading");
   selection.loading = true;
   emit();
   try {
@@ -388,7 +408,28 @@ async function loadInventory() {
       playlists: Array.isArray(data.playlists) ? data.playlists : [],
       error: null,
     };
+    if (data.loading === true) {
+      selection.loading = false;
+      selection.loaded = false;
+      inventoryReady = false;
+      setInventoryState("loading");
+      if (document.body && !selection.url) {
+        document.body.dataset.weWallpaperState = "none";
+      }
+      emit();
+      if (typeof window !== "undefined" && typeof window.setTimeout === "function") {
+        inventoryRetryTimer = window.setTimeout(() => {
+          inventoryRetryTimer = null;
+          void loadInventory();
+        }, 1000);
+      }
+      return;
+    }
+    inventoryReady = true;
+    setInventoryState("ready");
   } catch (err) {
+    setInventoryState("error");
+    if (clientDisposed) return;
     selection.inventory = {
       installDir: null,
       uploadDir: null,
@@ -399,6 +440,7 @@ async function loadInventory() {
       error: String(err && err.message ? err.message : err),
     };
   }
+  if (clientDisposed) return;
   selection.loading = false;
   selection.loaded = true;
   // Fresh inventory → reset pagination (the list changed under the user).
@@ -437,6 +479,15 @@ async function loadInventory() {
   // covers the rating/type filters): drop vanished/no-longer-matching
   // selections, then restore rotation state.
   revalidateSelection();
+  if (!selection.hasAppliedStartupDefault) {
+    selection.hasAppliedStartupDefault = true;
+    if (!selection.id && selection.defaultId) {
+      const defaultWallpaper = selection.inventory.wallpapers.find(
+        (wallpaper) => wallpaper.id === selection.defaultId && isRotatableWallpaper(wallpaper),
+      );
+      if (defaultWallpaper) applySelection(defaultWallpaper.id);
+    }
+  }
 }
 
 // ── Content-rating + type filters ───────────────────────────────────────────
@@ -477,7 +528,7 @@ function isPlayableType(w) {
   // "scene" = WE scene wallpaper — usable as a static frame when the host
   // served a frameUrl (extracted from its main texture).
   if (!w) return false;
-  if (w.playable && (w.type === "video" || w.type === "web" || w.type === "image")) return true;
+  if (w.playable && (w.type === "video" || w.type === "image") && typeof w.media === "string" && w.media.length > 0) return true;
   return w.type === "scene" && Boolean(w.frameUrl);
 }
 
@@ -569,6 +620,13 @@ function nextRotationWallpaper() {
   }
   const current = list.findIndex((w) => w.id === selection.id);
   return list[(current + 1 + list.length) % list.length] || null;
+}
+
+function prevRotationWallpaper() {
+  const list = rotationCandidates();
+  if (list.length < 2) return null;
+  const current = list.findIndex((w) => w.id === selection.id);
+  return list[(current - 1 + list.length) % list.length] || null;
 }
 
 function clearRotationTimer() {
@@ -855,6 +913,15 @@ function buildMedia(sel) {
     try { media.volume = Math.max(0, Math.min(1, (sel.volume ?? 50) / 100)); } catch { /* ignore */ }
     media.setAttribute("playsinline", "");
     media.className = "we-media" + fitClass;
+    media.onloadeddata = () => {
+      if (document.body) document.body.dataset.weWallpaperState = "ready";
+    };
+    media.oncanplay = () => {
+      if (document.body) document.body.dataset.weWallpaperState = "ready";
+    };
+    media.onerror = () => {
+      if (document.body) document.body.dataset.weWallpaperState = "error";
+    };
     // Native playbackRate — hardware-decoded, instant, no reload
     try { media.playbackRate = sel.playbackRate; } catch { /* ignore */ }
   } else if (isStill) {
@@ -862,6 +929,12 @@ function buildMedia(sel) {
     media.alt = "";
     media.draggable = false;
     media.className = "we-media" + fitClass;
+    media.onload = () => {
+      if (document.body) document.body.dataset.weWallpaperState = "ready";
+    };
+    media.onerror = () => {
+      if (document.body) document.body.dataset.weWallpaperState = "error";
+    };
     // Scene frames are generated on demand; a failed extraction (e.g. an
     // unsupported texture format) falls back to the project preview image.
     if (sel.type === "scene" && sel.previewUrl) {
@@ -874,11 +947,23 @@ function buildMedia(sel) {
     media.setAttribute("frameborder", "0");
     media.setAttribute("scrolling", "no");
     media.className = "we-media we-iframe";
+    media.onload = () => {
+      if (document.body) document.body.dataset.weWallpaperState = "ready";
+    };
   }
   return media;
 }
 
-function syncLayers() {
+function syncLayers(options) {
+  const preserveFloatingOrb = options?.refreshFloatingOrb === false || preserveFloatingOrbOnNextSync;
+  preserveFloatingOrbOnNextSync = false;
+  if (typeof document !== "undefined" && document.body) {
+    document.body.dataset.weWallpaperState = selection.url
+      ? "loading"
+      : selection.id && inventoryReady
+        ? "pending"
+        : "none";
+  }
   // 1. Wallpaper element.
   const existing = document.getElementById(LAYER_ID);
   if (selection.url) {
@@ -924,6 +1009,283 @@ function syncLayers() {
     if (scrim) scrim.remove();
     document.body.removeAttribute(ACTIVE_ATTR);
   }
+
+  // 3. Floating action button (FAB) quick-control orb
+  if (preserveFloatingOrb) refreshFloatingOrbState();
+  else syncFloatingOrb();
+}
+
+function syncFloatingOrb() {
+  const existing = document.getElementById(FAB_ID);
+  if (!selection.fabEnabled || !selection.url) {
+    if (existing) existing.remove();
+    return;
+  }
+
+  let orb = existing;
+  if (!orb) {
+    orb = document.createElement("div");
+    orb.id = FAB_ID;
+    document.body.appendChild(orb);
+  }
+
+  orb.className = "we-fab we-fab--" + (selection.fabPosition || "bottom-right") +
+    (selection.fabMenuOpen ? " we-fab--expanded" : "");
+
+  // Render FAB inner elements
+  renderOrbContent(orb);
+}
+
+function refreshFloatingOrbState() {
+  const orb = document.getElementById(FAB_ID);
+  if (!orb) return;
+  const isPlaying = selection.playing && Boolean(selection.url);
+  const isVideo = selection.type === "video";
+  const group = activeRotationGroup();
+  const candidates = rotationCandidates();
+  const current = selection.inventory.wallpapers.find((w) => w.id === selection.id);
+  const trigger = orb.querySelector(".we-fab__trigger");
+  const disc = orb.querySelector(".we-fab__disc");
+  const title = orb.querySelector("[data-we-fab-title]");
+  const badge = orb.querySelector("[data-we-fab-badge]");
+  const prev = orb.querySelector("[data-we-fab-prev]");
+  const next = orb.querySelector("[data-we-fab-next]");
+  const play = orb.querySelector("[data-we-fab-play]");
+  const mute = orb.querySelector("[data-we-fab-mute]");
+  const slider = orb.querySelector(".we-fab__volume-slider");
+  const volumeIcon = orb.querySelector(".we-fab__volume-icon");
+
+  if (trigger) trigger.className = "we-fab__trigger" + (selection.fabMenuOpen ? " we-fab__trigger--active" : "");
+  if (disc) {
+    disc.className = "we-fab__disc" + (isPlaying ? " we-fab__disc--spinning" : "");
+    const image = disc.querySelector("img");
+    if (current?.preview) {
+      if (image) image.src = current.preview;
+      else {
+        const nextImage = document.createElement("img");
+        nextImage.src = current.preview;
+        nextImage.alt = "";
+        nextImage.onerror = () => { nextImage.style.display = "none"; };
+        disc.insertBefore(nextImage, disc.firstChild);
+      }
+    } else if (image) image.remove();
+  }
+  if (title) {
+    title.textContent = current ? current.title : "壁纸快捷控制";
+    title.title = current ? current.title : "";
+  }
+  if (badge) {
+    badge.textContent = group ? group.name + " (" + candidates.length + ")" : "";
+    badge.style.display = group ? "" : "none";
+  }
+  if (prev) prev.disabled = candidates.length < 2;
+  if (next) next.disabled = candidates.length < 2;
+  if (play) {
+    play.title = isPlaying ? "暂停" : "播放";
+    play.innerHTML = isPlaying
+      ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>'
+      : '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+  }
+  if (mute) {
+    mute.className = "we-fab__btn" + (selection.muted ? " we-fab__btn--active" : "");
+    mute.title = selection.muted ? "取消静音" : "静音";
+  }
+  if (slider) slider.value = String(selection.volume);
+  if (volumeIcon) volumeIcon.textContent = selection.muted || selection.volume === 0 ? "🔇" : "🔊";
+}
+
+function renderOrbContent(container) {
+  const isPlaying = selection.playing && Boolean(selection.url);
+  const isVideo = selection.type === "video";
+  const group = activeRotationGroup();
+  const candidates = rotationCandidates();
+  const current = selection.inventory.wallpapers.find((w) => w.id === selection.id);
+  const coverUrl = current ? current.preview : null;
+
+  // Clear children
+  container.innerHTML = "";
+
+  // Menu popup (rendered when expanded)
+  if (selection.fabMenuOpen) {
+    const menu = document.createElement("div");
+    menu.className = "we-fab__menu";
+
+    // Title / info header
+    const head = document.createElement("div");
+    head.className = "we-fab__menu-head";
+    const titleSpan = document.createElement("span");
+    titleSpan.dataset.weFabTitle = "";
+    titleSpan.className = "we-fab__menu-title";
+    titleSpan.textContent = current ? current.title : "壁纸快捷控制";
+    titleSpan.title = current ? current.title : "";
+    head.appendChild(titleSpan);
+
+    if (group) {
+      const groupBadge = document.createElement("span");
+      groupBadge.dataset.weFabBadge = "";
+      groupBadge.className = "we-fab__menu-badge";
+      groupBadge.textContent = group.name + " (" + candidates.length + ")";
+      head.appendChild(groupBadge);
+    }
+    menu.appendChild(head);
+
+    // Button actions bar
+    const actions = document.createElement("div");
+    actions.className = "we-fab__menu-actions";
+
+    // Prev button (if in playlist/group)
+    const prevBtn = document.createElement("button");
+    prevBtn.className = "we-fab__btn";
+    prevBtn.dataset.weFabPrev = "";
+    prevBtn.type = "button";
+    prevBtn.title = "上一张壁纸";
+    prevBtn.disabled = candidates.length < 2;
+    prevBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg>';
+    prevBtn.onclick = (e) => {
+      e.stopPropagation();
+      const prev = prevRotationWallpaper();
+      if (prev) {
+        preserveFloatingOrbOnNextSync = true;
+        applySelection(prev.id);
+      }
+    };
+    actions.appendChild(prevBtn);
+
+    // Play/Pause button
+    const playBtn = document.createElement("button");
+    playBtn.className = "we-fab__btn we-fab__btn--primary";
+    playBtn.dataset.weFabPlay = "";
+    playBtn.type = "button";
+    playBtn.title = isPlaying ? "暂停" : "播放";
+    playBtn.innerHTML = isPlaying
+      ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>'
+      : '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+    playBtn.onclick = (e) => {
+      e.stopPropagation();
+      selection.playing = !selection.playing;
+      syncLayers({ refreshFloatingOrb: false });
+      refreshFloatingOrbState();
+      emit();
+    };
+    actions.appendChild(playBtn);
+
+    // Next button
+    const nextBtn = document.createElement("button");
+    nextBtn.className = "we-fab__btn";
+    nextBtn.dataset.weFabNext = "";
+    nextBtn.type = "button";
+    nextBtn.title = "下一张壁纸";
+    nextBtn.disabled = candidates.length < 2;
+    nextBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>';
+    nextBtn.onclick = (e) => {
+      e.stopPropagation();
+      const next = nextRotationWallpaper();
+      if (next) {
+        preserveFloatingOrbOnNextSync = true;
+        applySelection(next.id);
+      }
+    };
+    actions.appendChild(nextBtn);
+
+    // Mute toggle (if video)
+    if (isVideo) {
+      const muteBtn = document.createElement("button");
+      muteBtn.className = "we-fab__btn" + (selection.muted ? " we-fab__btn--active" : "");
+      muteBtn.dataset.weFabMute = "";
+      muteBtn.type = "button";
+      muteBtn.title = selection.muted ? "取消静音" : "静音";
+      muteBtn.innerHTML = selection.muted
+        ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>'
+        : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>';
+      muteBtn.onclick = (e) => {
+        e.stopPropagation();
+        selection.muted = !selection.muted;
+        persistSelection();
+        syncLayers({ refreshFloatingOrb: false });
+        refreshFloatingOrbState();
+        emit();
+      };
+      actions.appendChild(muteBtn);
+
+      const volumeRow = document.createElement("label");
+      volumeRow.className = "we-fab__volume";
+      volumeRow.title = "壁纸音量";
+      const volumeIcon = document.createElement("span");
+      volumeIcon.className = "we-fab__volume-icon";
+      volumeIcon.textContent = selection.muted || selection.volume === 0 ? "🔇" : "🔊";
+      const volumeSlider = document.createElement("input");
+      volumeSlider.className = "we-fab__volume-slider";
+      volumeSlider.type = "range";
+      volumeSlider.min = "0";
+      volumeSlider.max = "100";
+      volumeSlider.step = "1";
+      volumeSlider.value = String(selection.volume);
+      volumeSlider.setAttribute("aria-label", "壁纸音量");
+      volumeSlider.addEventListener("click", (event) => event.stopPropagation());
+      volumeSlider.addEventListener("input", (event) => {
+        selection.volume = clampNum(Number(event.target.value), 0, 100, 50);
+        if (selection.volume > 0 && selection.muted) selection.muted = false;
+        volumeIcon.textContent = selection.volume === 0 ? "🔇" : "🔊";
+        const video = document.querySelector(`#${LAYER_ID} video`);
+        if (video) {
+          video.muted = selection.muted === true;
+          video.volume = selection.volume / 100;
+        }
+        persistSelection();
+      });
+      volumeRow.appendChild(volumeIcon);
+      const volumeControl = document.createElement("span");
+      volumeControl.className = "we-fab__volume-control";
+      volumeControl.appendChild(volumeSlider);
+      volumeRow.appendChild(volumeControl);
+      actions.appendChild(volumeRow);
+    }
+
+    menu.appendChild(actions);
+    container.appendChild(menu);
+  }
+
+  // Floating trigger button (main circular orb)
+  const trigger = document.createElement("button");
+  trigger.className = "we-fab__trigger" + (selection.fabMenuOpen ? " we-fab__trigger--active" : "");
+  trigger.type = "button";
+  trigger.title = selection.fabMenuOpen ? "收起快捷控制" : "壁纸快捷控制";
+  trigger.onclick = (e) => {
+    e.stopPropagation();
+    selection.fabMenuOpen = !selection.fabMenuOpen;
+    syncFloatingOrb();
+    emit();
+  };
+
+  // Disc inside orb (mini vinyl cover)
+  const orbDisc = document.createElement("div");
+  orbDisc.className = "we-fab__disc" + (isPlaying ? " we-fab__disc--spinning" : "");
+  if (coverUrl) {
+    const img = document.createElement("img");
+    img.src = coverUrl;
+    img.alt = "";
+    img.onerror = () => { img.style.display = "none"; };
+    orbDisc.appendChild(img);
+  } else {
+    const placeholder = document.createElement("span");
+    placeholder.className = "we-fab__disc-placeholder";
+    placeholder.textContent = "❖";
+    orbDisc.appendChild(placeholder);
+  }
+  const centerHole = document.createElement("span");
+  centerHole.className = "we-fab__disc-hole";
+  orbDisc.appendChild(centerHole);
+
+  trigger.appendChild(orbDisc);
+
+  // Status pulse dot (rotation active indicator)
+  if (selection.rotationEnabled) {
+    const pulseDot = document.createElement("span");
+    pulseDot.className = "we-fab__pulse";
+    trigger.appendChild(pulseDot);
+  }
+
+  container.appendChild(trigger);
 }
 
 // ── Effect application: push the knobs into CSS variables ───────────────────
@@ -1219,6 +1581,7 @@ function WallpaperPicker() {
   const cdMode = sel.pickerLayout === "classic";
   const hiddenList = hiddenInventoryList();
   const current = list.find((w) => w.id === sel.id) || null;
+  const defaultWallpaper = list.find((w) => w.id === sel.defaultId) || null;
   const uploadedList = list.filter(isUploadedWallpaper);
   const groups = sel.rotationGroups;
   const group = activeRotationGroup();
@@ -1360,7 +1723,67 @@ function WallpaperPicker() {
           ? "CD 架：层叠 + 一页到底"
           : "常规网格 · 分页"),
     ),
+    // ── 桌面快捷悬浮球 (FAB): quick playback/rotation controller floating on screen ──
+    React.createElement("div", { className: "we-picker__row" },
+      React.createElement("span", { className: "we-picker__hint we-picker__label" }, "悬浮快捷球"),
+      React.createElement("label", { className: "we-picker__switch", title: "开启/关闭右下角悬浮快捷按钮" },
+        React.createElement("input", {
+          type: "checkbox",
+          checked: sel.fabEnabled,
+          onChange: (e) => {
+            selection.fabEnabled = e.target.checked;
+            persistSelection();
+            syncLayers();
+            emit();
+          },
+        }),
+        React.createElement("span", { className: "we-picker__switch-track" },
+          React.createElement("span", { className: "we-picker__switch-thumb" }),
+        ),
+      ),
+      sel.fabEnabled && React.createElement("select", {
+        className: "we-picker__playlist-select",
+        value: sel.fabPosition || "bottom-right",
+        onChange: (e) => {
+          selection.fabPosition = e.target.value;
+          persistSelection();
+          syncLayers();
+          emit();
+        },
+        title: "悬浮球屏幕固定位置",
+      },
+      React.createElement("option", { value: "bottom-right" }, "右下角 (默认)"),
+      React.createElement("option", { value: "bottom-left" }, "左下角"),
+      React.createElement("option", { value: "top-right" }, "右上角"),
+      React.createElement("option", { value: "top-left" }, "左上角"),
+      ),
+      React.createElement("span", { className: "we-picker__hint" },
+        sel.fabEnabled ? "可在主界面一键切歌/播放/轮播" : "已隐藏悬浮球"),
+    ),
     // ── 当前壁纸: vinyl record beside the selection, in both card styles. ──
+    React.createElement("div", { className: "we-picker__section" },
+      React.createElement("div", { className: "we-picker__row" },
+        React.createElement("span", { className: "we-picker__hint we-picker__label" }, "启动默认壁纸"),
+        React.createElement("select", {
+          className: "we-picker__playlist-select",
+          value: sel.defaultId || "",
+          onChange: (e) => {
+            selection.defaultId = e.target.value;
+            persistSelection();
+            emit();
+          },
+          title: "服务启动后首次加载时使用的壁纸",
+        },
+          React.createElement("option", { value: "" }, "不自动选择壁纸"),
+          playableList.map((wallpaper) => React.createElement("option", {
+            key: "default-" + wallpaper.id,
+            value: wallpaper.id,
+          }, wallpaper.title || wallpaper.id)),
+        ),
+        React.createElement("span", { className: "we-picker__hint" },
+          defaultWallpaper ? "启动时使用此壁纸" : "启动时不自动选择壁纸"),
+      ),
+    ),
     React.createElement("div", { className: "we-picker__section" },
       React.createElement("div", { className: "we-picker__current" },
         React.createElement(VinylRecord, {
@@ -1380,11 +1803,10 @@ function WallpaperPicker() {
           onClick: () => { selection.pickerOpen = true; selection.modalView = "normal"; emit(); },
         }, "选择壁纸"),
       ),
-    // ── Wallpaper picker modal. Portalled onto <body>: fixed positioning is
-    //    immune to ancestor transforms/backdrop-filters (the shell's own glass
-    //    effects would otherwise trap it), and z-index 1000 sits above the
-    //    shell overlays. Close: ESC, backdrop click, or the close buttons. ──
-    sel.pickerOpen && ReactDOM.createPortal(
+    // ── Wallpaper picker modal. Render it in the component tree so the
+    //    browser bundle does not depend on an optional react-dom portal export.
+    //    Fixed positioning and the high stacking layer keep it above the shell.
+    sel.pickerOpen ?
       React.createElement("div", { className: "we-picker__modal-overlay", onClick: closePicker },
         React.createElement("div", {
           className: "we-picker__modal",
@@ -1589,9 +2011,7 @@ function WallpaperPicker() {
             }, "关闭"),
           ),
         ),
-      ),
-      document.body,
-    ),
+      ) : null,
     // ── Playback controls (wallpaper-independent; the thumbnail grid lives in
     //    the modal above, so these stay within reach). ──
     React.createElement("div", { className: "we-picker__row" },
@@ -2713,19 +3133,178 @@ const CSS = `
     border-radius: 4px; background: rgba(0, 0, 0, 0.55); color: #fff;
     font-size: 12px; line-height: 18px; text-align: center;
   }
+
+  /* ── Floating Action Button (FAB) & Quick Menu ── */
+  .we-fab {
+    position: fixed; z-index: 998;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
+    user-select: none;
+    font-family: inherit;
+    transform: translateZ(0);
+    transition: opacity 0.2s ease;
+  }
+  .we-fab--bottom-right { right: 28px; bottom: 28px; align-items: flex-end; }
+  .we-fab--bottom-left { left: 28px; bottom: 28px; align-items: flex-start; }
+  .we-fab--top-right { right: 28px; top: 28px; align-items: flex-end; flex-direction: column-reverse; }
+  .we-fab--top-left { left: 28px; top: 28px; align-items: flex-start; flex-direction: column-reverse; }
+
+  /* Main Floating Orb Trigger */
+  .we-fab__trigger {
+    position: relative; width: 50px; height: 50px; padding: 0; margin: 0;
+    border-radius: 50%; cursor: pointer;
+    border: 1.5px solid color-mix(in srgb, var(--we-accent, #4f8cff) 65%, rgba(255, 255, 255, 0.4));
+    background: color-mix(in srgb, var(--we-glass-color, #ffffff) calc(var(--we-glass-alpha, 0.5) * 1.5 * 100%), rgba(20, 25, 35, 0.7));
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.28), 0 2px 8px rgba(0, 0, 0, 0.16), inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+    display: flex; align-items: center; justify-content: center;
+    transition: box-shadow 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
+  }
+  .we-fab__trigger:hover {
+    border-color: var(--we-accent, #4f8cff);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.36), 0 0 20px color-mix(in srgb, var(--we-accent, #4f8cff) 45%, transparent);
+  }
+  .we-fab__trigger:active {
+    background-color: color-mix(in srgb, var(--we-accent, #4f8cff) 22%, rgba(20, 25, 35, 0.7));
+  }
+  .we-fab__trigger--active {
+    border-color: var(--we-accent, #4f8cff);
+    box-shadow: 0 0 24px color-mix(in srgb, var(--we-accent, #4f8cff) 60%, transparent);
+  }
+
+  /* Disc Vinyl inside Orb */
+  .we-fab__disc {
+    position: relative; width: 38px; height: 38px; border-radius: 50%;
+    overflow: hidden; background: #111;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15), 0 2px 6px rgba(0, 0, 0, 0.4);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .we-fab__disc img {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  }
+  .we-fab__disc-placeholder {
+    font-size: 16px; color: var(--we-accent, #4f8cff); opacity: 0.9;
+  }
+  .we-fab__disc-hole {
+    position: relative; z-index: 2; width: 8px; height: 8px; border-radius: 50%;
+    background: #000; border: 1.5px solid rgba(255, 255, 255, 0.8);
+    box-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
+  }
+  .we-fab__disc--spinning {
+    animation: we-fab-spin 10s linear infinite;
+  }
+  @keyframes we-fab-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  /* Pulse Dot Indicator (when rotation is active) */
+  .we-fab__pulse {
+    position: absolute; top: 1px; right: 1px; width: 10px; height: 10px;
+    border-radius: 50%; background: #50fa7b;
+    border: 2px solid rgba(20, 25, 35, 0.9);
+    box-shadow: 0 0 8px #50fa7b;
+    animation: we-fab-pulse-glow 2s ease-in-out infinite;
+  }
+  @keyframes we-fab-pulse-glow {
+    0%, 100% { transform: scale(0.9); opacity: 0.85; }
+    50% { transform: scale(1.2); opacity: 1; }
+  }
+
+  /* Expanded Glass Menu */
+  .we-fab__menu {
+    min-width: 210px; max-width: 260px;
+    padding: 10px 12px; border-radius: 14px;
+    background: color-mix(in srgb, var(--we-glass-color, #ffffff) calc(var(--we-glass-alpha, 0.5) * 1.6 * 100%), rgba(20, 25, 35, 0.82));
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid color-mix(in srgb, var(--we-accent, #4f8cff) 35%, rgba(255, 255, 255, 0.18));
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+    display: flex; flex-direction: column; gap: 8px;
+    animation: we-fab-menu-fade 0.16s ease-out;
+  }
+  @keyframes we-fab-menu-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .we-fab__menu-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 6px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .we-fab__menu-title {
+    font-size: 0.78em; font-weight: 600; color: #fff;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  }
+  .we-fab__menu-badge {
+    font-size: 0.68em; padding: 1px 5px; border-radius: 4px;
+    background: color-mix(in srgb, var(--we-accent, #4f8cff) 40%, rgba(0, 0, 0, 0.4));
+    color: #fff; white-space: nowrap;
+  }
+
+  .we-fab__menu-actions {
+    display: flex; align-items: center; justify-content: space-between; gap: 6px;
+    flex-wrap: wrap;
+  }
+  .we-fab__volume {
+    display: flex; align-items: center; gap: 6px; flex: 1 0 100%;
+    min-width: 0; padding: 3px 2px 0; color: rgba(255, 255, 255, 0.9);
+  }
+  .we-fab__volume-icon { width: 18px; text-align: center; font-size: 13px; }
+  .we-fab__volume-control { display: flex; flex: 1; min-width: 0; }
+  .we-fab__volume-slider {
+    flex: 1; min-width: 110px; height: 8px; accent-color: var(--we-accent, #4f8cff);
+    cursor: pointer;
+  }
+  .we-fab__btn {
+    width: 32px; height: 32px; padding: 0; margin: 0; border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background-color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+  }
+  .we-fab__btn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--we-accent, #4f8cff) 35%, rgba(255, 255, 255, 0.2));
+    border-color: var(--we-accent, #4f8cff);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  }
+  .we-fab__btn:active:not(:disabled) {
+    background: color-mix(in srgb, var(--we-accent, #4f8cff) 28%, rgba(255, 255, 255, 0.12));
+  }
+  .we-fab__btn:disabled {
+    opacity: 0.35; cursor: not-allowed;
+  }
+  .we-fab__btn--primary {
+    background: color-mix(in srgb, var(--we-accent, #4f8cff) 75%, transparent);
+    border-color: var(--we-accent, #4f8cff);
+  }
+  .we-fab__btn--active {
+    background: #ff5555;
+    border-color: #ff5555;
+  }
 `;
 
 const TAG_ID = "dsh-wallpaper-engine/styles";
-if (typeof document !== "undefined" &&
-    document.querySelector("style[data-plugin-css=" + JSON.stringify(TAG_ID) + "]") === null) {
-  const tag = document.createElement("style");
-  tag.dataset.plugin = "dsh-wallpaper-engine";
-  tag.dataset.pluginCss = TAG_ID;
-  tag.textContent = CSS;
-  document.head.appendChild(tag);
+function mountStyles() {
+  if (typeof document === "undefined") return () => {};
+  let tag = document.querySelector("style[data-plugin-css=" + JSON.stringify(TAG_ID) + "]");
+  if (!tag) {
+    tag = document.createElement("style");
+    tag.dataset.plugin = "dsh-wallpaper-engine";
+    tag.dataset.pluginCss = TAG_ID;
+    tag.textContent = CSS;
+    document.head.appendChild(tag);
+  }
+  return () => {
+    if (tag && tag.parentNode) tag.parentNode.removeChild(tag);
+  };
 }
 
 // ── Plugin exports ──────────────────────────────────────────────────────────
+const name = "@moshe-233/dsh-miaomiaopaper/client";
 const inject = ["slots"];
 
 function apply(ctx) {
@@ -2733,11 +3312,39 @@ function apply(ctx) {
   //    with the selection store. ctx.effect gives fiber-lifetime cleanup.
   if (ctx.effect) {
     ctx.effect(() => {
+      clientDisposed = false;
+      const removeStyles = mountStyles();
+      pagehideHandler = () => {
+        if (persistTimer && typeof window !== "undefined" && typeof window.clearTimeout === "function") {
+          window.clearTimeout(persistTimer);
+          persistTimer = null;
+          void pushPersisted();
+        }
+      };
+      if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+        window.addEventListener("pagehide", pagehideHandler);
+      }
       const unsub = subscribe(syncLayers);
       const unsubEffects = subscribe(applyEffects);
+      setInventoryState("loading");
       syncLayers();
       applyEffects();
+      void loadPersisted().then(loadInventory);
       return () => {
+        clientDisposed = true;
+        removeStyles();
+        if (inventoryRetryTimer && typeof window !== "undefined" && typeof window.clearTimeout === "function") {
+          window.clearTimeout(inventoryRetryTimer);
+          inventoryRetryTimer = null;
+        }
+        if (persistTimer && typeof window !== "undefined" && typeof window.clearTimeout === "function") {
+          window.clearTimeout(persistTimer);
+          persistTimer = null;
+        }
+        if (pagehideHandler && typeof window !== "undefined" && typeof window.removeEventListener === "function") {
+          window.removeEventListener("pagehide", pagehideHandler);
+          pagehideHandler = null;
+        }
         unsub();
         unsubEffects();
         clearRotationTimer();
@@ -2745,6 +3352,8 @@ function apply(ctx) {
         if (node) node.remove();
         const scrim = document.getElementById(SCRIM_ID);
         if (scrim) scrim.remove();
+        const fab = document.getElementById(FAB_ID);
+        if (fab) fab.remove();
         clearEffects();
         document.body.removeAttribute(ACTIVE_ATTR);
       };
@@ -2763,12 +3372,9 @@ function apply(ctx) {
     );
   }
 
-  // Settings first (host file, port-independent), then inventory — so the
-  // selection restore inside loadInventory()'s revalidateSelection() sees the
-  // persisted id and can resolve its media URL.
-  loadPersisted().then(loadInventory);
 }
 
+exports.name = name;
 exports.apply = apply;
 exports.inject = inject;
 return module.exports;

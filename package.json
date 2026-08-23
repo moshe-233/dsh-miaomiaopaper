@@ -1,13 +1,13 @@
 {
-  "name": "dsh-plugin-wallpaper-engine",
-  "version": "0.4.0",
-  "description": "Wallpaper Engine backgrounds for the DSH web GUI: render your local Wallpaper Engine Video/Web wallpapers behind the chat, Scene wallpapers as extracted static frames, with iOS-style liquid glass, adjustable scrim/border/blur, and a customizable accent color + glass transparency for the whole settings window.",
+  "name": "@moshe-233/dsh-miaomiaopaper",
+  "version": "0.4.1",
+  "description": "dsh-miaomiaopaper: 喵喵壁纸管理器 - Wallpaper Engine backgrounds & liquid glass for DSH web GUI (Forked and customized from elysia395/dsh-wallpaper-engine)",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/elysia395/dsh-wallpaper-engine.git"
+    "url": "git+https://github.com/moshe-233/dsh-miaomiaopaper.git"
   },
   "keywords": [
     "dsh",

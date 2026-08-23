@@ -1,4 +1,6 @@
-# dsh-plugin-wallpaper-engine
+# dsh-miaomiaopaper (喵喵壁纸管理器 🐾)
+
+> **本项目 Fork 自 [elysia395/dsh-wallpaper-engine](https://github.com/elysia395/dsh-wallpaper-engine) 并由 @moshe-233 进行二次开发与优化**。感谢原作者 elysia395 的杰出工作！
 
 [English](README.en.md) | [中文](README.md)
 
@@ -145,6 +147,7 @@ dsh plugin --profile web add link:./dsh-wallpaper-engine
 1. 打开 `dsh web`，进入 DSH 界面。
 2. 打开 **设置**，左侧导航里找到 **Wallpaper Engine**（一级设置页，侧边栏独立入口）。
 3. 点击 **选择壁纸** 打开选择弹窗，在缩略图网格里点选一张 Video/Web 壁纸（或上传的图片/视频），它会出现在界面后方；点遮罩、按 ESC 或点「关闭」收起弹窗。Scene/Application 无法内嵌网页，不显示在网格中。
+4. 在设置页的 **启动默认壁纸** 下拉框中选择一张壁纸，或选择「不自动选择壁纸」。该选项会保存到主机配置；下次服务启动且没有当前壁纸选择时，插件才会自动应用它，不会覆盖已经手动选择的当前壁纸。
 4. 用 **暂停/播放** 暂停视频壁纸，用 **关闭** 清除壁纸。
    选择会保存在浏览器的 `localStorage`（键 `dsh-wallpaper-engine:selection`）中。
 
