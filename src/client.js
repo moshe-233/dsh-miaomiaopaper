@@ -96,6 +96,10 @@ const DEFAULTS = {
   contentRatingFilter: "everyone",
   // Wallpaper-type filter (all / video / web / image / scene). "all" disables it.
   typeFilter: "all",
+  // Source filter (all / workshop / local): "local" narrows the library grid to
+  // uploaded/drop-in wallpapers (host marks them `local: true`); "workshop" to
+  // Wallpaper Engine workshop items.
+  sourceFilter: "all",
   // Thumbnail-card style: "classic" (WE's original aspect-ratio 16/9 cards —
   // the CD-like look the author liked; can overlap in older browsers) or
   // "fixed" (rewritten fixed-height cards that never overlap). The vinyl
@@ -132,6 +136,7 @@ const DEFAULTS = {
 // readPersisted() validates against them at module load (const TDZ).
 const RATING_VALUES = ["all", "everyone", "pg13", "mature", "unrated"];
 const TYPE_VALUES = ["all", "video", "web", "image", "scene"];
+const SOURCE_VALUES = ["all", "workshop", "local"];
 const FAB_POSITIONS = ["bottom-right", "bottom-left", "top-right", "top-left"];
 
 // 配色 presets for the settings-page liquid-glass theme. The accent drives
@@ -216,6 +221,8 @@ function sanitizeSettings(o) {
       ? o.contentRatingFilter : DEFAULTS.contentRatingFilter,
     typeFilter: TYPE_VALUES.includes(o.typeFilter)
       ? o.typeFilter : DEFAULTS.typeFilter,
+    sourceFilter: SOURCE_VALUES.includes(o.sourceFilter)
+      ? o.sourceFilter : DEFAULTS.sourceFilter,
     pickerLayout: o.pickerLayout === "classic" ? "classic" : "fixed",
     accent: typeof o.accent === "string" && /^#[0-9a-f]{6}$/i.test(o.accent)
       ? o.accent : DEFAULTS.accent,
@@ -309,6 +316,7 @@ function serializeSelection() {
     objectFit: selection.objectFit,
     contentRatingFilter: selection.contentRatingFilter,
     typeFilter: selection.typeFilter,
+    sourceFilter: selection.sourceFilter,
     pickerLayout: selection.pickerLayout,
     accent: selection.accent,
     glassAlpha: selection.glassAlpha,
@@ -523,6 +531,15 @@ function matchesTypeFilter(w) {
   return w.type === filter;
 }
 
+// Source filter: the host tags uploaded / drop-in wallpapers with
+// `local: true` (everything else comes from the Wallpaper Engine library).
+function matchesSourceFilter(w) {
+  const filter = selection.sourceFilter;
+  if (filter === "all") return true;
+  if (filter === "local") return w.local === true;
+  return w.local !== true; // workshop
+}
+
 function isPlayableType(w) {
   // "image" = user-uploaded still image (custom uploads, id prefix "up-").
   // "scene" = WE scene wallpaper — usable as a static frame when the host
@@ -533,7 +550,7 @@ function isPlayableType(w) {
 }
 
 function isRotatableWallpaper(w) {
-  return isPlayableType(w) && matchesRatingFilter(w) && matchesTypeFilter(w);
+  return isPlayableType(w) && matchesRatingFilter(w) && matchesTypeFilter(w) && matchesSourceFilter(w);
 }
 
 function playableInventory() {
@@ -1868,6 +1885,7 @@ function WallpaperPicker() {
                           })
                         : React.createElement("span", { className: "we-picker__card-placeholder" }, "无预览"),
                       React.createElement("span", { className: "we-picker__card-title" }, w.title),
+                      w.local === true && React.createElement("span", { className: "we-picker__card-badge we-picker__card-badge--local" }, "本地"),
                       w.type === "scene" && React.createElement("span", { className: "we-picker__card-badge" }, "静态帧"),
                       React.createElement("button", {
                         className: "we-picker__card-hide", type: "button",
@@ -1939,6 +1957,24 @@ function WallpaperPicker() {
                   React.createElement("option", { value: "image" }, "图片（" + typeCount("image") + "）"),
                   React.createElement("option", { value: "scene" }, "场景（" + typeCount("scene") + "）"),
                   ),
+                  React.createElement("span", { className: "we-picker__hint we-picker__label" }, "来源"),
+                  React.createElement("select", {
+                    className: "we-picker__playlist-select",
+                    value: sel.sourceFilter,
+                    onChange: (e) => {
+                      selection.sourceFilter = e.target.value;
+                      persistSelection();
+                      revalidateSelection();
+                      resetPagination();
+                      syncLayers();
+                      emit();
+                    },
+                    title: "按壁纸来源过滤：工坊 = Wallpaper Engine 创意工坊，本地 = 上传 / 拷入的自定义壁纸",
+                  },
+                  React.createElement("option", { value: "all" }, "全部（" + basePlayable.length + "）"),
+                  React.createElement("option", { value: "workshop" }, "创意工坊（" + basePlayable.filter((w) => w.local !== true).length + "）"),
+                  React.createElement("option", { value: "local" }, "本地（" + basePlayable.filter((w) => w.local === true).length + "）"),
+                  ),
                 ),
                 React.createElement("div", { className: "we-picker__grid" },
                   // "Close wallpaper" card — equivalent of the old first <option>.
@@ -1987,6 +2023,7 @@ function WallpaperPicker() {
                           })
                         : React.createElement("span", { className: "we-picker__card-placeholder" }, "无预览"),
                       React.createElement("span", { className: "we-picker__card-title" }, w.title),
+                      w.local === true && React.createElement("span", { className: "we-picker__card-badge we-picker__card-badge--local" }, "本地"),
                       w.type === "scene" && React.createElement("span", { className: "we-picker__card-badge" }, "静态帧"),
                       selection.batchMode
                         ? React.createElement("span", { className: "we-picker__card-check" },
@@ -2983,6 +3020,12 @@ const CSS = `
     padding: 1px 6px; font-size: 0.62em; line-height: 1.6;
     border-radius: 4px; color: #fff;
     background: rgba(30, 90, 160, 0.85);
+  }
+  /* "本地" source badge (uploaded / drop-in wallpapers) — green, sits left of
+     any other badge so both stay readable on the same card. */
+  .we-picker__card-badge--local {
+    right: auto; left: 4px;
+    background: rgba(34, 130, 70, 0.88);
   }
   .we-picker__card-placeholder {
     position: absolute; inset: 0;
