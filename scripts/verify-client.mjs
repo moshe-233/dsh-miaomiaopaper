@@ -21,19 +21,33 @@ const React = {
 let byId = {};
 const rotationTimers = [];
 function makeEl(tag) {
-  return {
+  const el = {
     tagName: tag.toUpperCase(),
     children: [],
     dataset: {},
     attributes: {},
     style: { _props: {}, setProperty(k, v) { this._props[k] = v; }, removeProperty(k) { delete this._props[k]; } },
     className: "",
-    appendChild(c) { this.children.push(c); if (c.id) byId[c.id] = c; return c; },
-    remove() { if (this._parent) { const i = this._parent.children.indexOf(this); if (i >= 0) this._parent.children.splice(i, 1); } },
+    appendChild(c) { this.children.push(c); if (c.id) byId[c.id] = c; if (c._parent) c._parent.removeChild(c); c._parent = this; return c; },
+    remove() { if (this._parent) { const i = this._parent.children.indexOf(this); if (i >= 0) this._parent.children.splice(i, 1); delete this._parent; } },
+    removeChild(c) { const i = this.children.indexOf(c); if (i >= 0) this.children.splice(i, 1); },
     setAttribute(k, v) { this.attributes[k] = v; },
     removeAttribute(k) { delete this.attributes[k]; },
     querySelector(sel) { return null; },
+    querySelectorAll(sel) { return []; },
+    // [local-patch] real DOM elements expose these; the FAB volume slider and
+    // outside-dismiss/hotkey wiring depend on them.
+    addEventListener() {},
+    removeEventListener() {},
+    closest() { return null; },
   };
+  // [local-patch] emulate innerHTML assignment clearing children, as real DOM
+  // does — renderOrbContent() wipes the orb with container.innerHTML = "".
+  Object.defineProperty(el, 'innerHTML', {
+    get() { return ''; },
+    set() { el.children = []; },
+  });
+  return el;
 }
 
 const bodyEl = makeEl("body");
@@ -41,8 +55,13 @@ const document = {
   createElement: (t) => makeEl(t),
   getElementById: (id) => byId[id] || null,
   querySelector: () => null,
+  querySelectorAll: () => [],
   head: { appendChild: () => {} },
   body: bodyEl,
+  // [local-patch] stub the add/removeEventListener pair used by the FAB
+  // outside-click dismissal and global hotkey wiring.
+  addEventListener: () => {},
+  removeEventListener: () => {},
 };
 
 const localStorage = {
@@ -260,6 +279,73 @@ setTimeout(() => {
       console.log('page 2 shows last wallpaper (Wall 29):', page2Text.includes('Wall 29'));
       console.log('page 2 no longer shows page-1 item (Wall 0):', !page2Text.includes('Wall 0'));
       console.log('scene C (frameUrl) in grid:', page2Text.includes('Scene C'));
+    }
+
+    // ── [local-patch] FAB orb regression: open the quick-control menu over a
+    // VIDEO wallpaper. The selection is 'a' (type video) from localStorage, so
+    // the menu must render the vertical volume pane WITHOUT throwing — a past
+    // revision declared volumeRow inside the if-block and the assembly step
+    // hit a ReferenceError, wiping the orb mid-render (orb vanished).
+    const fab = document.getElementById('dsh-wallpaper-engine-fab');
+    console.log('FAB orb mounted:', !!fab);
+    if (fab) {
+      const trigger = fab.children.find((c) => typeof c.className === 'string' && c.className.includes('we-fab__trigger'));
+      let openError = null;
+      try { trigger && trigger.onclick && trigger.onclick({ stopPropagation() {} }); } catch (e) { openError = e && e.message; }
+      console.log('FAB toggle threw:', openError || '(none)');
+      // syncFloatingOrb re-rendered the orb: the expanded menu must exist.
+      const fabAfter = document.getElementById('dsh-wallpaper-engine-fab');
+      const findClass = (node, needle, hits) => {
+        if (!node || typeof node !== 'object') return;
+        if (typeof node.className === 'string' && node.className.includes(needle)) hits.push(node);
+        (node.children || []).forEach((c) => findClass(c, needle, hits));
+      };
+      const menus = [];
+      const volRows = [];
+      const sliders = [];
+      if (fabAfter) {
+        findClass(fabAfter, 'we-fab__menu', menus);
+        findClass(fabAfter, 'we-fab__volume', volRows);
+        findClass(fabAfter, 'we-fab__volume-slider', sliders);
+      }
+      console.log('expanded menu rendered after toggle:', menus.length > 0);
+      console.log('horizontal volume row rendered (video wallpaper):', volRows.length > 0);
+      console.log('volume slider present:', sliders.length > 0);
+      console.log('circular buttons count (expect 4: prev/play/next/mute):', (() => {
+        const btns = []; if (fabAfter) findClass(fabAfter, 'we-fab__btn', btns); return btns.length;
+      })());
+      // ── [local-patch] vertical wallpaper list regression: the current
+      // rotation group (g1 = ['a','b']) renders two rows, the active one
+      // carries the --active class, and clicking a row switches selection.
+      const rows = []; const listRows = [];
+      if (fabAfter) {
+        findClass(fabAfter, 'we-fab__list-row', listRows);
+        for (const r of listRows) rows.push(r);
+      }
+      console.log('wallpaper list rows (expect 2 from group g1):', listRows.length);
+      console.log('active list row present:', listRows.some((r) => typeof r.className === 'string' && r.className.includes('we-fab__list-row--active')));
+      const activeLabel = listRows.find((r) => r.className.includes('--active'))?.children?.[0]?.textContent;
+      console.log('active list row label:', JSON.stringify(activeLabel));
+      // Click the NON-active row, expect applySelection to run (no throw).
+      const inactiveRow = listRows.find((r) => !r.className.includes('--active'));
+      let listClickError = null;
+      try { inactiveRow && inactiveRow.onclick && inactiveRow.onclick({ stopPropagation() {} }); } catch (e) { listClickError = e && e.message; }
+      console.log('list row click threw:', listClickError || '(none)');
+      console.log('selection switched after list click:', JSON.parse(localStorage._store['dsh-wallpaper-engine:selection']).id);
+      // ── [local-patch] collapse list: toggle button flips the list to the
+      // --collapsed class and clicking again restores it.
+      const collapseBtns = []; if (fabAfter) findClass(fabAfter, 'we-fab__collapse-btn', collapseBtns);
+      console.log('collapse button present:', collapseBtns.length > 0);
+      let collapseError = null;
+      try { collapseBtns[0] && collapseBtns[0].onclick && collapseBtns[0].onclick({ stopPropagation() {} }); } catch (e) { collapseError = e && e.message; }
+      console.log('collapse toggle threw:', collapseError || '(none)');
+      const listAfter = document.getElementById('dsh-wallpaper-engine-fab');
+      let collapsedNow = false;
+      if (listAfter) {
+        const lists = []; findClass(listAfter, 'we-fab__list', lists);
+        collapsedNow = lists.some((l) => typeof l.className === 'string' && l.className.includes('--collapsed'));
+      }
+      console.log('list collapsed after toggle:', collapsedNow);
     }
   }
   console.log('effects ran:', effects.length);

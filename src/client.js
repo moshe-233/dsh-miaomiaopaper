@@ -50,6 +50,9 @@ const LAYER_ID = "dsh-wallpaper-engine-layer";
 const SCRIM_ID = "dsh-wallpaper-engine-scrim";
 const FAB_ID = "dsh-wallpaper-engine-fab";
 let preserveFloatingOrbOnNextSync = false;
+// [local-patch] remember whether the wallpaper list is collapsed; toggled by
+// the small chevron in the FAB menu header and reset on re-render.
+let fabListCollapsed = false;
 let inventoryReady = false;
 let inventoryRetryTimer = null;
 let clientDisposed = false;
@@ -130,6 +133,27 @@ const DEFAULTS = {
   // - fabPosition: position anchor on screen ("bottom-right" | "bottom-left" | "top-right" | "top-left")
   fabEnabled: true,
   fabPosition: "bottom-right",
+  // [local-patch] UI-collection (收纳) controls built on the host chrome:
+  // - topbarHideEnabled: show a small topbar collapse button that hides/shows
+  //   the app top bar (like a window manager's toolbar toggle).
+  // - topbarHidePosition: where the collapse button sits ("top-right" | "top-left").
+  // - composerHideEnabled: show the iPad-style white home-indicator bar that
+  //   collapses/expands the composer (input) area.
+  // - composerTriggerMode: how the trigger bar behaves
+  //     "click"     → click the bar to toggle (default)
+  //     "swipe"     → drag/swipe up to collapse, down to expand
+  //     "dockbtn"   → bar carries a small dock button that toggles
+  // - composerBarLength: bar length in px (200–400).
+  // - composerBarWidth: bar thickness/height in px (4–12).
+  // - composerBarBottom: distance from the viewport bottom in px (4–80).
+  topbarHideEnabled: true,
+  topbarHidePosition: "top-right",
+  composerHideEnabled: true,
+  statusBarHideEnabled: true,
+  composerTriggerMode: "click",
+  composerBarLength: 160,
+  composerBarWidth: 6,
+  composerBarBottom: 14,
 };
 
 // Selectable values for the two filters. Declared up top because
@@ -138,6 +162,9 @@ const RATING_VALUES = ["all", "everyone", "pg13", "mature", "unrated"];
 const TYPE_VALUES = ["all", "video", "web", "image", "scene"];
 const SOURCE_VALUES = ["all", "workshop", "local"];
 const FAB_POSITIONS = ["bottom-right", "bottom-left", "top-right", "top-left"];
+// [local-patch] UI-collection option values.
+const TOPBAR_POSITIONS = ["top-right", "top-left"];
+const TRIGGER_MODES = ["click", "swipe", "dockbtn"];
 
 // 配色 presets for the settings-page liquid-glass theme. The accent drives
 // buttons/sliders/selected cards/badges and the glass sheen via --we-accent;
@@ -238,6 +265,17 @@ function sanitizeSettings(o) {
     glassWindow: o.glassWindow !== false,
     fabEnabled: o.fabEnabled !== false,
     fabPosition: FAB_POSITIONS.includes(o.fabPosition) ? o.fabPosition : DEFAULTS.fabPosition,
+    // [local-patch] UI-collection settings (see DEFAULTS for doc).
+    topbarHideEnabled: o.topbarHideEnabled !== false,
+    topbarHidePosition: TOPBAR_POSITIONS.includes(o.topbarHidePosition)
+      ? o.topbarHidePosition : DEFAULTS.topbarHidePosition,
+    composerHideEnabled: o.composerHideEnabled !== false,
+    statusBarHideEnabled: o.statusBarHideEnabled !== false,
+    composerTriggerMode: TRIGGER_MODES.includes(o.composerTriggerMode)
+      ? o.composerTriggerMode : DEFAULTS.composerTriggerMode,
+    composerBarLength: clampNum(o.composerBarLength, 120, 400, DEFAULTS.composerBarLength),
+    composerBarWidth: clampNum(o.composerBarWidth, 4, 20, DEFAULTS.composerBarWidth),
+    composerBarBottom: clampNum(o.composerBarBottom, 4, 120, DEFAULTS.composerBarBottom),
   };
 }
 
@@ -330,6 +368,15 @@ function serializeSelection() {
     glassWindow: selection.glassWindow,
     fabEnabled: selection.fabEnabled,
     fabPosition: selection.fabPosition,
+    // [local-patch] UI-collection settings.
+    topbarHideEnabled: selection.topbarHideEnabled,
+    topbarHidePosition: selection.topbarHidePosition,
+    composerHideEnabled: selection.composerHideEnabled,
+    statusBarHideEnabled: selection.statusBarHideEnabled,
+    composerTriggerMode: selection.composerTriggerMode,
+    composerBarLength: selection.composerBarLength,
+    composerBarWidth: selection.composerBarWidth,
+    composerBarBottom: selection.composerBarBottom,
   };
 }
 
@@ -1113,6 +1160,8 @@ function syncFloatingOrb() {
   const existing = document.getElementById(FAB_ID);
   if (!selection.fabEnabled || !selection.url) {
     if (existing) existing.remove();
+    teardownFabOutsideDismiss();
+    teardownFabHotkeys();
     return;
   }
 
@@ -1123,12 +1172,354 @@ function syncFloatingOrb() {
     document.body.appendChild(orb);
   }
 
+  // [local-patch] Global hotkeys (Alt+←/→/↓) live for the lifetime of the
+  // wallpaper layer, same as the outside-click dismissal wiring.
+  setupFabHotkeys();
+
+  // [local-patch] Dismiss-on-outside-click: while the quick-control popup is
+  // open, any pointerdown outside the FAB closes it (standard popover UX);
+  // clicking the trigger again still works as a toggle. The listeners live
+  // for the lifetime of the orb and are cleaned up when it is removed.
+  setupFabOutsideDismiss(orb);
+
   orb.className = "we-fab we-fab--" + (selection.fabPosition || "bottom-right") +
     (selection.fabMenuOpen ? " we-fab--expanded" : "");
 
   // Render FAB inner elements
   renderOrbContent(orb);
 }
+
+// [local-patch] Outside-click dismissal wiring for the FAB popup.
+let fabDismissCleanup = null;
+function setupFabOutsideDismiss(orb) {
+  if (fabDismissCleanup) return;
+  const onPointerDown = (event) => {
+    if (!selection.fabMenuOpen) return;
+    if (!(event.target instanceof Node)) return;
+    if (orb.contains(event.target)) return;
+    selection.fabMenuOpen = false;
+    syncFloatingOrb();
+    emit();
+  };
+  const onKeyDown = (event) => {
+    if (!selection.fabMenuOpen) return;
+    if (event.key !== "Escape") return;
+    selection.fabMenuOpen = false;
+    syncFloatingOrb();
+    emit();
+  };
+  document.addEventListener("pointerdown", onPointerDown, true);
+  document.addEventListener("keydown", onKeyDown, true);
+  fabDismissCleanup = () => {
+    document.removeEventListener("pointerdown", onPointerDown, true);
+    document.removeEventListener("keydown", onKeyDown, true);
+    fabDismissCleanup = null;
+  };
+}
+function teardownFabOutsideDismiss() {
+  if (fabDismissCleanup) fabDismissCleanup();
+}
+
+// [local-patch] Global hotkeys for the FAB controls: Alt+Right = next
+// wallpaper, Alt+Left = previous, Alt+Down = play/pause. Only active while a
+// wallpaper is showing; ignored while the user is typing in an input/textarea
+// or contentEditable field so text entry is never hijacked.
+function setupFabHotkeys() {
+  if (fabHotkeysCleanup) return;
+  const isTypingTarget = (event) => {
+    const t = event.target;
+    if (!(t instanceof Element)) return false;
+    const tag = (t.tagName || "").toLowerCase();
+    return tag === "input" || tag === "textarea" || tag === "select" || t.isContentEditable;
+  };
+  const stepTo = (next) => {
+    if (!selection.fabEnabled || !selection.url) return;
+    if (!next) return;
+    preserveFloatingOrbOnNextSync = true;
+    applySelection(next.id);
+  };
+  const onKeyDown = (event) => {
+    if (!event.altKey || event.ctrlKey || event.metaKey) return;
+    if (isTypingTarget(event)) return;
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      event.stopPropagation();
+      stepTo(nextRotationWallpaper(true));
+    } else if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      event.stopPropagation();
+      stepTo(prevRotationWallpaper());
+    } else if (event.key === "ArrowDown") {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!selection.url) return;
+      selection.playing = !selection.playing;
+      syncLayers({ refreshFloatingOrb: false });
+      refreshFloatingOrbState();
+      emit();
+    }
+  };
+  document.addEventListener("keydown", onKeyDown, true);
+  fabHotkeysCleanup = () => {
+    document.removeEventListener("keydown", onKeyDown, true);
+    fabHotkeysCleanup = null;
+  };
+}
+let fabHotkeysCleanup = null;
+function teardownFabHotkeys() {
+  if (fabHotkeysCleanup) fabHotkeysCleanup();
+}
+
+// ── [local-patch] UI-collection (收纳) chrome ────────────────────────────────
+// Two independent collectors that fold up host chrome so the wallpaper fills
+// the viewport:
+//   1. TopBar collapse button — a slim pill docked at a corner; click toggles
+//      the app top bar (probed geometrically, like dsh-zen's findChrome).
+//   2. Composer white trigger bar — an iPad-style home-indicator pill at the
+//      bottom; collapses/expands the composer (input dock) only, with three
+//      selectable trigger modes (click / swipe / dockbtn).
+// Both read their knobs from the persisted settings and re-apply on change.
+
+const TRIGGER_ID = "dsh-we-trigger";
+
+function probeTopbar() {
+  // Top bar: a wide, short strip pinned to the top of the viewport. Return
+  // the best candidate (largest area) matching that profile.
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const all = document.querySelectorAll("body *");
+  let best = null, bestArea = 0;
+  for (let i = 0; i < all.length; i++) {
+    const el = all[i];
+    if (el.closest("#" + TOPBAR_BTN_ID) || el.closest("#" + TRIGGER_ID)) continue;
+    if (el.querySelector("textarea") || el.querySelector("[contenteditable]")) continue;
+    const cs = window.getComputedStyle(el);
+    if (cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0") continue;
+    const r = el.getBoundingClientRect();
+    if (r.width < vw * 0.4 || r.height < 8 || r.height > vh * 0.22) continue;
+    if (r.top > 2 && r.top > vh * 0.02) continue; // must hug the top edge
+    const area = r.width * r.height;
+    if (area < vw * vh * 0.03) continue;
+    if (area > bestArea) { bestArea = area; best = el; }
+  }
+  return best;
+}
+
+function probeComposer() {
+  // Composer seat: DSH marks the input dock with [data-composer-seat]. Fall
+  // back to any element containing a textarea / contenteditable near bottom.
+  let seat = document.querySelector("[data-composer-seat]");
+  if (seat) return seat;
+  const all = document.querySelectorAll("textarea,[contenteditable],[role=textbox],input[type=text]");
+  for (let i = 0; i < all.length; i++) {
+    const el = all[i];
+    const r = el.getBoundingClientRect();
+    if (r.width < 40 || r.height < 10) continue;
+    let parent = el.parentElement;
+    while (parent && parent !== document.body) {
+      const pr = parent.getBoundingClientRect();
+      if (pr.width > 0 && pr.height > 0 && pr.bottom <= window.innerHeight + 4) return parent;
+      parent = parent.parentElement;
+    }
+    return el;
+  }
+  return null;
+}
+
+function probeStatusBar() {
+  const all = document.querySelectorAll("body *");
+  const metrics = /(轮|步|token|tok\/s|缓存命中|输入|输出|首\s*token|LLM|工具调用)/i;
+  const excluded = "#" + TRIGGER_ID + ",[id^='dsh-wallpaper-engine-'],[role='dialog'],textarea,[contenteditable],input,button";
+  let best = null;
+  let bestScore = -Infinity;
+  for (let i = 0; i < all.length; i++) {
+    const el = all[i];
+    if (!el || (el.matches && el.matches(excluded)) || (el.closest && el.closest(excluded))) continue;
+    const text = String(el.textContent || "").replace(/\s+/g, " ").trim();
+    if (!text || !metrics.test(text)) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width < 180 || r.height < 8 || r.height > 140 || r.bottom < window.innerHeight * 0.55) continue;
+    const cs = typeof window.getComputedStyle === "function" ? window.getComputedStyle(el) : null;
+    if (cs && (cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0")) continue;
+    // Prefer the compact row itself over an app-shell ancestor. A candidate
+    // with several metric fragments is more reliable than one matching one
+    // incidental descendant; shorter rows win ties.
+    const hits = (text.match(/轮|步|token|tok\/s|缓存命中|输入|输出|首\s*token|LLM|工具调用/gi) || []).length;
+    const compact = r.height <= 64 ? 3 : r.height <= 96 ? 1 : -3;
+    const score = hits * 20 + compact - r.height / 100 - Math.min(8, Math.abs(window.innerHeight - r.bottom) / 100);
+    if (score > bestScore) { bestScore = score; best = el; }
+  }
+  return best;
+}
+
+let hiddenStatusBar = null;
+function refreshStatusBar() {
+  if (typeof document === "undefined") return;
+  if (hiddenStatusBar && hiddenStatusBar.classList) {
+    hiddenStatusBar.classList.remove("dsh-we-status-hidden");
+    hiddenStatusBar.removeAttribute("data-dsh-we-status-hidden");
+  }
+  hiddenStatusBar = null;
+  const status = probeStatusBar();
+  if (!status) return;
+  hiddenStatusBar = status;
+  const hide = selection.statusBarHideEnabled !== false;
+  if (status.classList) status.classList.toggle("dsh-we-status-hidden", hide);
+  if (hide) status.setAttribute("data-dsh-we-status-hidden", "1");
+}
+
+function recomposeCollectorPositions() {
+  const trigger = document.getElementById(TRIGGER_ID);
+  if (trigger) trigger.style.bottom = "0px";
+}
+
+function markHostUiLayer() {
+  if (typeof document === "undefined" || !document.body) return;
+  const protectedIds = new Set([LAYER_ID, SCRIM_ID, FAB_ID, TRIGGER_ID]);
+  const children = document.body.children || [];
+  for (let i = 0; i < children.length; i++) {
+    const node = children[i];
+    if (!node || protectedIds.has(node.id) || node.tagName === "STYLE" || node.tagName === "SCRIPT") continue;
+    node.setAttribute("data-dsh-we-host-layer", "1");
+  }
+}
+
+function setCollectorButton(button, collapsed, kind) {
+  const label = collapsed ? "展开输入框" : "收起输入框";
+  button.setAttribute("aria-label", label);
+  button.title = label;
+  button.dataset.collapsed = collapsed ? "1" : "0";
+}
+
+function bindComposerTrigger(trigger) {
+  let collapsed = false;
+  let currentComposer = null;
+  let originalComposerStyles = null;
+  const restoreComposer = () => {
+    if (!currentComposer || !originalComposerStyles) return;
+    for (const [property, value] of Object.entries(originalComposerStyles)) {
+      currentComposer.style[property] = value;
+    }
+  };
+  const applyState = (composer) => {
+    if (!composer) return;
+    if (composer !== currentComposer) {
+      restoreComposer();
+      originalComposerStyles = Object.fromEntries([
+        "transition",
+        "overflow",
+        "height",
+        "opacity",
+        "paddingTop",
+        "paddingBottom",
+      ].map((property) => [property, composer.style[property]]));
+    }
+    currentComposer = composer;
+    composer.style.transition = "height 0.2s ease, opacity 0.2s ease";
+    if (collapsed) {
+      composer.style.overflow = "hidden";
+      composer.style.height = "0px";
+      composer.style.opacity = "0";
+      composer.style.paddingTop = "0";
+      composer.style.paddingBottom = "0";
+    } else {
+      composer.style.overflow = originalComposerStyles.overflow;
+      composer.style.height = originalComposerStyles.height;
+      composer.style.opacity = originalComposerStyles.opacity;
+      composer.style.paddingTop = originalComposerStyles.paddingTop;
+      composer.style.paddingBottom = originalComposerStyles.paddingBottom;
+    }
+  };
+  const refresh = () => {
+    if (typeof document === "undefined") return;
+    const composer = probeComposer();
+    if (composer && composer !== currentComposer) applyState(composer);
+    else if (composer && collapsed) applyState(composer);
+  };
+  const onClick = () => {
+    refresh();
+    if (!currentComposer) return;
+    collapsed = !collapsed;
+    applyState(currentComposer);
+    setCollectorButton(trigger, collapsed, "composer");
+  };
+  setCollectorButton(trigger, collapsed, "composer");
+  trigger.addEventListener("click", onClick);
+  let observer = null;
+  if (typeof MutationObserver === "function" && document.body) {
+    observer = new MutationObserver(refresh);
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+  return () => {
+    trigger.removeEventListener("click", onClick);
+    if (observer) observer.disconnect();
+    restoreComposer();
+    currentComposer = null;
+    originalComposerStyles = null;
+  };
+}
+
+let uiCollectorsCleanup = null;
+function mountUiCollectors() {
+  if (uiCollectorsCleanup) return;
+  const cleanups = [];
+  let trigger = document.getElementById(TRIGGER_ID);
+  if (selection.composerHideEnabled !== false) {
+    if (!trigger) {
+      trigger = document.createElement("button");
+      trigger.id = TRIGGER_ID;
+      trigger.type = "button";
+      (document.documentElement || document.body).appendChild(trigger);
+    }
+    cleanups.push(bindComposerTrigger(trigger));
+  }
+  let refreshTimer = null;
+  const refreshAll = () => {
+    if (refreshTimer != null) return;
+    const schedule = typeof window !== "undefined" && typeof window.setTimeout === "function"
+      ? window.setTimeout : setTimeout;
+    refreshTimer = schedule(() => {
+      refreshTimer = null;
+      refreshStatusBar();
+      recomposeCollectorPositions();
+      markHostUiLayer();
+    }, 0);
+  };
+  refreshAll();
+  let observer = null;
+  if (typeof MutationObserver === "function" && document.body) {
+    observer = new MutationObserver(refreshAll);
+    observer.observe(document.body, { childList: true, subtree: true });
+    cleanups.push(() => observer.disconnect());
+  }
+  const onResize = refreshAll;
+  if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+    window.addEventListener("resize", onResize);
+    cleanups.push(() => window.removeEventListener("resize", onResize));
+  }
+  const off = subscribe(refreshAll);
+  cleanups.push(off);
+  cleanups.push(() => {
+    if (refreshTimer != null) {
+      const cancel = typeof window !== "undefined" && typeof window.clearTimeout === "function"
+        ? window.clearTimeout : clearTimeout;
+      cancel(refreshTimer);
+      refreshTimer = null;
+    }
+    if (hiddenStatusBar && hiddenStatusBar.classList) {
+      hiddenStatusBar.classList.remove("dsh-we-status-hidden");
+      hiddenStatusBar.removeAttribute("data-dsh-we-status-hidden");
+      hiddenStatusBar = null;
+    }
+  });
+  uiCollectorsCleanup = () => {
+    for (const fn of cleanups) { try { fn(); } catch { /* ignore */ } }
+    const node = document.getElementById(TRIGGER_ID);
+    if (node) node.remove();
+    uiCollectorsCleanup = null;
+  };
+}
+function teardownUiCollectors() { if (uiCollectorsCleanup) uiCollectorsCleanup(); }
 
 function refreshFloatingOrbState() {
   const orb = document.getElementById(FAB_ID);
@@ -1165,8 +1556,19 @@ function refreshFloatingOrbState() {
     } else if (image) image.remove();
   }
   if (title) {
-    title.textContent = current ? current.title : "壁纸快捷控制";
-    title.title = current ? current.title : "";
+    // [local-patch] vertical panel: the marquee track holds two copies; update
+    // both and re-measure so scrolling only runs when the text overflows.
+    const titleText = current ? current.title : "壁纸快捷控制";
+    const track = title.closest("[data-we-fab-title-track]");
+    for (const copy of orb.querySelectorAll("[data-we-fab-title]")) {
+      copy.textContent = titleText;
+      copy.title = titleText;
+    }
+    if (track) {
+      const wrap = track.parentElement;
+      const overflow = Boolean(wrap && track.scrollWidth > wrap.clientWidth + 1);
+      track.classList.toggle("we-fab__title-track--scroll", overflow);
+    }
   }
   if (badge) {
     const modeTag = group && group.videoOnly
@@ -1179,7 +1581,7 @@ function refreshFloatingOrbState() {
   if (prev) prev.disabled = !canStep;
   if (next) next.disabled = !canStep;
   if (play) {
-    play.title = isPlaying ? "暂停" : "播放";
+    play.title = isPlaying ? "暂停 (Alt+↓)" : "播放 (Alt+↓)";
     play.innerHTML = isPlaying
       ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>'
       : '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
@@ -1208,15 +1610,74 @@ function renderOrbContent(container) {
     const menu = document.createElement("div");
     menu.className = "we-fab__menu";
 
-    // Title / info header
+    // Title / info header [local-patch] MIDDLE panel: wallpaper name marquee
+    // (with a collapse toggle) on top, then a vertical list of the current
+    // rotation group's wallpapers that fills the tall gap.
     const head = document.createElement("div");
     head.className = "we-fab__menu-head";
-    const titleSpan = document.createElement("span");
-    titleSpan.dataset.weFabTitle = "";
-    titleSpan.className = "we-fab__menu-title";
-    titleSpan.textContent = current ? current.title : "壁纸快捷控制";
-    titleSpan.title = current ? current.title : "";
-    head.appendChild(titleSpan);
+    const titleText = current ? current.title : "壁纸快捷控制";
+
+    // [local-patch] top row: name marquee + list collapse toggle.
+    const headTop = document.createElement("div");
+    headTop.className = "we-fab__menu-head-top";
+    const marquee = document.createElement("div");
+    marquee.className = "we-fab__title-marquee";
+    marquee.dataset.weFabTitleWrap = "";
+    marquee.title = titleText;
+    const track = document.createElement("span");
+    track.className = "we-fab__title-track";
+    track.dataset.weFabTitleTrack = "";
+    for (let copy = 0; copy < 2; copy++) {
+      const span = document.createElement("span");
+      span.className = "we-fab__title-copy";
+      span.dataset.weFabTitle = "";
+      span.textContent = titleText;
+      track.appendChild(span);
+    }
+    marquee.appendChild(track);
+    headTop.appendChild(marquee);
+
+    const collapseBtn = document.createElement("button");
+    collapseBtn.className = "we-fab__collapse-btn" + (fabListCollapsed ? " we-fab__collapse-btn--collapsed" : "");
+    collapseBtn.type = "button";
+    collapseBtn.title = fabListCollapsed ? "展开列表" : "收起列表";
+    collapseBtn.setAttribute("aria-label", collapseBtn.title);
+    collapseBtn.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+    collapseBtn.onclick = (e) => {
+      e.stopPropagation();
+      fabListCollapsed = !fabListCollapsed;
+      syncFloatingOrb();
+      emit();
+    };
+    headTop.appendChild(collapseBtn);
+    head.appendChild(headTop);
+
+    // [local-patch] vertical wallpaper list (hidden when collapsed): the
+    // current rotation group's entries, current one highlighted.
+    const list = document.createElement("div");
+    list.className = "we-fab__list" + (fabListCollapsed ? " we-fab__list--collapsed" : "");
+    for (const item of candidates) {
+      const row = document.createElement("button");
+      row.className = "we-fab__list-row" + (item.id === selection.id ? " we-fab__list-row--active" : "");
+      row.type = "button";
+      row.title = item.title || item.id;
+      const label = document.createElement("span");
+      label.className = "we-fab__list-label";
+      label.textContent = item.title || item.id;
+      row.appendChild(label);
+      const dot = document.createElement("span");
+      dot.className = "we-fab__list-dot";
+      row.appendChild(dot);
+      row.onclick = (e) => {
+        e.stopPropagation();
+        if (item.id !== selection.id) {
+          preserveFloatingOrbOnNextSync = true;
+          applySelection(item.id);
+        }
+      };
+      list.appendChild(row);
+    }
+    head.appendChild(list);
 
     if (group) {
       const groupBadge = document.createElement("span");
@@ -1227,18 +1688,20 @@ function renderOrbContent(container) {
       groupBadge.textContent = group.name + modeTag + " (" + candidates.length + ")";
       head.appendChild(groupBadge);
     }
-    menu.appendChild(head);
 
-    // Button actions bar
+    // Button actions [local-patch] HORIZONTAL: a row of circular buttons plus
+    // a row volume fader under it. Full width, like a compact player.
     const actions = document.createElement("div");
     actions.className = "we-fab__menu-actions";
+    const actionsCol = document.createElement("div");
+    actionsCol.className = "we-fab__menu-actions-col";
 
     // Prev button (if in playlist/group)
     const prevBtn = document.createElement("button");
     prevBtn.className = "we-fab__btn";
     prevBtn.dataset.weFabPrev = "";
     prevBtn.type = "button";
-    prevBtn.title = "上一张壁纸";
+    prevBtn.title = "上一张壁纸 (Alt+←)";
     prevBtn.disabled = !(candidates.length >= 2 || (group && group.videoOnly && candidates.length >= 1));
     prevBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg>';
     prevBtn.onclick = (e) => {
@@ -1249,14 +1712,14 @@ function renderOrbContent(container) {
         applySelection(prev.id);
       }
     };
-    actions.appendChild(prevBtn);
+    actionsCol.appendChild(prevBtn);
 
     // Play/Pause button
     const playBtn = document.createElement("button");
     playBtn.className = "we-fab__btn we-fab__btn--primary";
     playBtn.dataset.weFabPlay = "";
     playBtn.type = "button";
-    playBtn.title = isPlaying ? "暂停" : "播放";
+    playBtn.title = isPlaying ? "暂停 (Alt+↓)" : "播放 (Alt+↓)";
     playBtn.innerHTML = isPlaying
       ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>'
       : '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
@@ -1267,14 +1730,14 @@ function renderOrbContent(container) {
       refreshFloatingOrbState();
       emit();
     };
-    actions.appendChild(playBtn);
+    actionsCol.appendChild(playBtn);
 
     // Next button
     const nextBtn = document.createElement("button");
     nextBtn.className = "we-fab__btn";
     nextBtn.dataset.weFabNext = "";
     nextBtn.type = "button";
-    nextBtn.title = "下一张壁纸";
+    nextBtn.title = "下一张壁纸 (Alt+→)";
     nextBtn.disabled = !(candidates.length >= 2 || (group && group.videoOnly && candidates.length >= 1));
     nextBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>';
     nextBtn.onclick = (e) => {
@@ -1285,9 +1748,14 @@ function renderOrbContent(container) {
         applySelection(next.id);
       }
     };
-    actions.appendChild(nextBtn);
+    actionsCol.appendChild(nextBtn);
 
     // Mute toggle (if video)
+    // [local-patch] volumeRow is declared with `let` OUTSIDE the if-block so
+    // the assembly step below can reference it; a previous version declared
+    // it inside and threw a ReferenceError for video wallpapers, which killed
+    // renderOrbContent mid-render and made the whole orb vanish.
+    let volumeRow = null;
     if (isVideo) {
       const muteBtn = document.createElement("button");
       muteBtn.className = "we-fab__btn" + (selection.muted ? " we-fab__btn--active" : "");
@@ -1305,14 +1773,15 @@ function renderOrbContent(container) {
         refreshFloatingOrbState();
         emit();
       };
-      actions.appendChild(muteBtn);
+      actionsCol.appendChild(muteBtn);
 
-      const volumeRow = document.createElement("label");
+      volumeRow = document.createElement("label");
       volumeRow.className = "we-fab__volume";
       volumeRow.title = "壁纸音量";
       const volumeIcon = document.createElement("span");
       volumeIcon.className = "we-fab__volume-icon";
       volumeIcon.textContent = selection.muted || selection.volume === 0 ? "🔇" : "🔊";
+      // [local-patch] HORIZONTAL slider (filled left → right), standard range.
       const volumeSlider = document.createElement("input");
       volumeSlider.className = "we-fab__volume-slider";
       volumeSlider.type = "range";
@@ -1338,9 +1807,16 @@ function renderOrbContent(container) {
       volumeControl.className = "we-fab__volume-control";
       volumeControl.appendChild(volumeSlider);
       volumeRow.appendChild(volumeControl);
-      actions.appendChild(volumeRow);
     }
 
+    // Assemble [local-patch]: buttons row first, volume row below (video only).
+    actions.appendChild(actionsCol);
+    if (isVideo && volumeRow) {
+      actions.appendChild(volumeRow);
+    }
+    // [local-patch] header (name marquee + wallpaper list) sits above the
+    // controls; controls dock at the bottom as full-width rows.
+    menu.appendChild(head);
     menu.appendChild(actions);
     container.appendChild(menu);
   }
@@ -1860,6 +2336,32 @@ function WallpaperPicker() {
       React.createElement("span", { className: "we-picker__hint" },
         sel.fabEnabled ? "可在主界面一键切歌/播放/轮播" : "已隐藏悬浮球"),
     ),
+      // ── Composer 全局收纳：底部 Home Indicator 风格按钮 ──
+      React.createElement("div", { className: "we-picker__section" },
+        React.createElement("div", { className: "we-picker__hint we-picker__label" }, "对话框收纳"),
+        React.createElement("div", { className: "we-picker__row" },
+          React.createElement("span", { className: "we-picker__hint we-picker__label" }, "底部收纳白条"),
+          React.createElement("label", { className: "we-picker__switch", title: "显示全局对话框收纳白条" },
+            React.createElement("input", {
+              type: "checkbox", checked: sel.composerHideEnabled !== false,
+              onChange: (e) => { selection.composerHideEnabled = e.target.checked; persistSelection(); emit(); },
+            }),
+            React.createElement("span", { className: "we-picker__switch-track" }, React.createElement("span", { className: "we-picker__switch-thumb" })),
+          ),
+          React.createElement("span", { className: "we-picker__hint" }, "跟随当前会话，点击底部半透明白条收起/展开输入框"),
+        ),
+        React.createElement("div", { className: "we-picker__row" },
+          React.createElement("span", { className: "we-picker__hint we-picker__label" }, "隐藏会话状态栏"),
+          React.createElement("label", { className: "we-picker__switch", title: "隐藏底部轮数、Token、缓存等状态文字" },
+            React.createElement("input", {
+              type: "checkbox", checked: sel.statusBarHideEnabled !== false,
+              onChange: (e) => { selection.statusBarHideEnabled = e.target.checked; persistSelection(); emit(); },
+            }),
+            React.createElement("span", { className: "we-picker__switch-track" }, React.createElement("span", { className: "we-picker__switch-thumb" })),
+          ),
+          React.createElement("span", { className: "we-picker__hint" }, "默认隐藏，关闭后恢复查看状态文字"),
+        ),
+      ),
     // ── 当前壁纸: vinyl record beside the selection, in both card styles. ──
     React.createElement("div", { className: "we-picker__section" },
       React.createElement("div", { className: "we-picker__row" },
@@ -1903,9 +2405,8 @@ function WallpaperPicker() {
           onClick: () => { selection.pickerOpen = true; selection.modalView = "normal"; emit(); },
         }, "选择壁纸"),
       ),
-    // ── Wallpaper picker modal. Render it in the component tree so the
-    //    browser bundle does not depend on an optional react-dom portal export.
-    //    Fixed positioning and the high stacking layer keep it above the shell.
+    // ── Wallpaper picker modal. Fixed positioning and the high stacking layer
+    //    keep it above the shell. ──
     sel.pickerOpen ?
       React.createElement("div", { className: "we-picker__modal-overlay", onClick: closePicker },
         React.createElement("div", {
@@ -2491,7 +2992,10 @@ function WallpaperPickerSection() {
 // ── Styles ──────────────────────────────────────────────────────────────────
 const CSS = `
   /* Wallpaper layer: a fixed child of <body>, sunk BELOW the app frame. */
-  .we-layer { position: fixed; inset: 0; z-index: -2; overflow: hidden; pointer-events: none; }
+  .dsh-we-status-hidden { display: none !important; }
+  body[data-we-wallpaper] { isolation: isolate; }
+  .we-layer { position: fixed; inset: 0; z-index: -2; isolation: auto; overflow: hidden; pointer-events: none; }
+  body > [data-dsh-we-host-layer] { position: relative; z-index: 1; }
   /* Blurring via CSS filter darkens/thins the edges, so the layer is scaled up
      (--we-wallpaper-scale tracks blur) to hide the transparent fringe the blur
      would otherwise reveal at the viewport edges. */
@@ -2508,9 +3012,7 @@ const CSS = `
      keeps cover above; only .we-media--fit reads the variable. */
   .we-layer .we-media--fit { object-fit: var(--we-object-fit, cover); }
 
-  /* Scrim: sits ABOVE the wallpaper (z-index -1 > -2, so it never depends on
-     DOM insertion order — the wallpaper element is re-appended on wallpaper
-     switch and could otherwise slide above the scrim). Below the UI. */
+  /* Scrim shares the explicit background layer and remains non-interactive. */
   .we-scrim {
     position: fixed; inset: 0; z-index: -1;
     pointer-events: none;
@@ -3360,78 +3862,254 @@ const CSS = `
   }
 
   /* Expanded Glass Menu */
+  /* Expanded Glass Menu — vertical quick-control panel [local-patch] */
   .we-fab__menu {
-    min-width: 210px; max-width: 260px;
-    padding: 10px 12px; border-radius: 14px;
-    background: color-mix(in srgb, var(--we-glass-color, #ffffff) calc(var(--we-glass-alpha, 0.5) * 1.6 * 100%), rgba(20, 25, 35, 0.82));
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid color-mix(in srgb, var(--we-accent, #4f8cff) 35%, rgba(255, 255, 255, 0.18));
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+    width: 148px; max-width: 168px; min-width: 0;
+    padding: 10px; border-radius: 18px;
+    /* [local-patch] plain black Apple-style frosted glass: no texture, just a
+       deep translucent black, a strong blur + saturation, and a hairline
+       border — the macOS/iOS "material" look. */
+    background-color: rgba(10, 12, 16, 0.72);
+    background-image: linear-gradient(165deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.00) 38%, rgba(255,255,255,0.03) 100%);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow:
+      0 16px 40px rgba(0, 0, 0, 0.5),
+      0 4px 12px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.16),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.14);
     display: flex; flex-direction: column; gap: 8px;
     animation: we-fab-menu-fade 0.16s ease-out;
   }
   @keyframes we-fab-menu-fade {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from { opacity: 0; transform: translateY(-3px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 
+  /* [local-patch] MIDDLE panel: name marquee + vertical wallpaper list that
+     fills the tall gap; framed by a soft glass inset, iOS button-shell look. */
   .we-fab__menu-head {
-    display: flex; align-items: center; justify-content: space-between; gap: 6px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex; flex-direction: column; gap: 6px;
+    padding: 8px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    flex: 1 1 auto;
+    min-height: 0;
   }
-  .we-fab__menu-title {
-    font-size: 0.78em; font-weight: 600; color: #fff;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  /* [local-patch] header top row: name marquee + collapse chevron. */
+  .we-fab__menu-head-top {
+    display: flex; align-items: center; gap: 6px; min-width: 0;
+  }
+  .we-fab__collapse-btn {
+    flex: 0 0 auto; width: 20px; height: 20px; padding: 0; margin: 0;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.85); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background-color 0.14s ease, transform 0.14s ease;
+  }
+  .we-fab__collapse-btn:hover { background: rgba(255, 255, 255, 0.16); }
+  .we-fab__collapse-btn svg { transition: transform 0.16s ease; }
+  .we-fab__collapse-btn--collapsed svg { transform: rotate(-90deg); }
+  /* Vertical wallpaper list [local-patch]: each row = label + trailing dot
+     (current), fills the space; scrolls inside the framed shell. */
+  .we-fab__list {
+    display: flex; flex-direction: column; gap: 2px;
+    overflow-y: auto; flex: 1 1 auto; min-height: 0;
+    max-height: 148px;
+    padding-right: 2px;
+  }
+  /* [local-patch] collapsed list: hide rows but keep a slim gap in layout. */
+  .we-fab__list--collapsed { display: none; }
+  .we-fab__list::-webkit-scrollbar { width: 3px; }
+  .we-fab__list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.22); border-radius: 999px; }
+  .we-fab__list-row {
+    display: flex; align-items: center; gap: 6px;
+    width: 100%; padding: 5px 7px; margin: 0;
+    border: 0; border-radius: 8px;
+    background: transparent; color: rgba(255, 255, 255, 0.72);
+    font-size: 0.72em; text-align: left; cursor: pointer;
+    transition: background-color 0.14s ease, color 0.14s ease;
+  }
+  .we-fab__list-row:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+  .we-fab__list-label {
+    flex: 1 1 auto; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .we-fab__list-dot {
+    flex: 0 0 auto; width: 6px; height: 6px; border-radius: 50%;
+    background: rgba(255, 255, 255, 0.22);
+    transition: background-color 0.14s ease, box-shadow 0.14s ease;
+  }
+  .we-fab__list-row--active {
+    background: color-mix(in srgb, var(--we-accent, #4f8cff) 24%, rgba(255,255,255,0.08));
+    color: #fff;
+  }
+  .we-fab__list-row--active .we-fab__list-dot {
+    background: var(--we-accent, #4f8cff);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--we-accent, #4f8cff) 70%, transparent);
+  }
+  /* Wallpaper-name marquee: scrolls horizontally only when the title
+     overflows the narrow panel; edge fade via mask-image. */
+  .we-fab__title-marquee {
+    overflow: hidden; min-width: 0; flex: 1;
+    mask-image: linear-gradient(to right, transparent, #000 7%, #000 93%, transparent);
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 7%, #000 93%, transparent);
+  }
+  .we-fab__title-track {
+    display: inline-flex; white-space: nowrap; will-change: transform;
+  }
+  .we-fab__title-copy {
+    font-size: 0.8em; font-weight: 600; color: #fff;
+    padding-right: 22px;
+    letter-spacing: 0.01em;
+  }
+  .we-fab__title-track--scroll { animation: we-fab-title-marquee 8s linear infinite; }
+  @keyframes we-fab-title-marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .we-fab__title-track--scroll { animation: none; }
   }
   .we-fab__menu-badge {
-    font-size: 0.68em; padding: 1px 5px; border-radius: 4px;
-    background: color-mix(in srgb, var(--we-accent, #4f8cff) 40%, rgba(0, 0, 0, 0.4));
+    align-self: flex-start;
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+    font-size: 0.64em; padding: 2px 8px; border-radius: 999px;
+    background: color-mix(in srgb, var(--we-accent, #4f8cff) 30%, rgba(0, 0, 0, 0.35));
+    border: 1px solid color-mix(in srgb, var(--we-accent, #4f8cff) 45%, transparent);
     color: #fff; white-space: nowrap;
   }
 
+  /* [local-patch] HORIZONTAL action area: a button row, then a volume row. */
   .we-fab__menu-actions {
-    display: flex; align-items: center; justify-content: space-between; gap: 6px;
-    flex-wrap: wrap;
+    display: flex; flex-direction: column; align-items: stretch; gap: 8px;
   }
+  .we-fab__menu-actions-col {
+    display: flex; flex-direction: row; align-items: center;
+    justify-content: center; gap: 10px; flex: 1 1 auto; min-width: 0;
+  }
+  /* Horizontal volume row [local-patch]: speaker icon + wide slider. */
   .we-fab__volume {
-    display: flex; align-items: center; gap: 6px; flex: 1 0 100%;
-    min-width: 0; padding: 3px 2px 0; color: rgba(255, 255, 255, 0.9);
-  }
-  .we-fab__volume-icon { width: 18px; text-align: center; font-size: 13px; }
-  .we-fab__volume-control { display: flex; flex: 1; min-width: 0; }
-  .we-fab__volume-slider {
-    flex: 1; min-width: 110px; height: 8px; accent-color: var(--we-accent, #4f8cff);
+    display: flex; flex-direction: row; align-items: center; gap: 7px;
+    flex: 1 1 auto; min-width: 0; color: rgba(255, 255, 255, 0.9);
     cursor: pointer;
   }
+  .we-fab__volume-icon {
+    font-size: 12px; line-height: 1; opacity: 0.85; flex: 0 0 auto;
+  }
+  .we-fab__volume-control {
+    display: flex; flex: 1 1 auto; min-height: 0; align-items: center;
+    min-width: 0;
+  }
+  /* Horizontal fader: standard range with a filled track + round thumb. */
+  .we-fab__volume-slider {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 6px; margin: 0;
+    border-radius: 999px;
+    background: linear-gradient(to right,
+      color-mix(in srgb, var(--we-accent, #4f8cff) 78%, #fff 0%),
+      color-mix(in srgb, var(--we-accent, #4f8cff) 78%, #fff 0%));
+    cursor: pointer;
+  }
+  .we-fab__volume-slider:focus { outline: none; }
+  .we-fab__volume-slider::-webkit-slider-runnable-track {
+    height: 6px; border-radius: 999px;
+    background: rgba(255, 255, 255, 0.14);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  }
+  .we-fab__volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 16px; height: 16px; border-radius: 50%;
+    margin-top: -5px;
+    background: linear-gradient(180deg, #ffffff, #e6ecf5);
+    border: 2px solid color-mix(in srgb, var(--we-accent, #4f8cff) 70%, #fff 0%);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.8);
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+  }
+  .we-fab__volume-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.12);
+    box-shadow: 0 3px 9px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.85);
+  }
+  .we-fab__volume-slider:active::-webkit-slider-thumb { transform: scale(1.05); }
   .we-fab__btn {
-    width: 32px; height: 32px; padding: 0; margin: 0; border-radius: 8px;
+    width: 30px; height: 30px; padding: 0; margin: 0; border-radius: 50%;
     border: 1px solid rgba(255, 255, 255, 0.16);
-    background: rgba(255, 255, 255, 0.08);
-    color: #fff; cursor: pointer;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.05));
+    color: #fff; cursor: pointer; flex: 0 0 auto;
     display: flex; align-items: center; justify-content: center;
-    transition: background-color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    transition: background-color 0.16s ease, border-color 0.16s ease,
+      box-shadow 0.16s ease, transform 0.12s ease;
   }
   .we-fab__btn:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--we-accent, #4f8cff) 35%, rgba(255, 255, 255, 0.2));
+    background: color-mix(in srgb, var(--we-accent, #4f8cff) 30%, rgba(255, 255, 255, 0.16));
     border-color: var(--we-accent, #4f8cff);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.28), 0 0 0 1px color-mix(in srgb, var(--we-accent, #4f8cff) 40%, transparent);
+    transform: translateY(-1px);
   }
   .we-fab__btn:active:not(:disabled) {
-    background: color-mix(in srgb, var(--we-accent, #4f8cff) 28%, rgba(255, 255, 255, 0.12));
+    background: color-mix(in srgb, var(--we-accent, #4f8cff) 26%, rgba(255, 255, 255, 0.1));
+    transform: scale(0.94);
   }
   .we-fab__btn:disabled {
     opacity: 0.35; cursor: not-allowed;
   }
+  /* Play/pause is the hero control: bigger accent circle, like Spotify. */
   .we-fab__btn--primary {
-    background: color-mix(in srgb, var(--we-accent, #4f8cff) 75%, transparent);
-    border-color: var(--we-accent, #4f8cff);
+    width: 40px; height: 40px;
+    background: linear-gradient(180deg,
+      color-mix(in srgb, var(--we-accent, #4f8cff) 90%, #fff 0%),
+      color-mix(in srgb, var(--we-accent, #4f8cff) 72%, #000 0%));
+    border-color: color-mix(in srgb, var(--we-accent, #4f8cff) 70%, #fff 0%);
+    box-shadow: 0 5px 14px rgba(0, 0, 0, 0.35),
+      0 0 14px color-mix(in srgb, var(--we-accent, #4f8cff) 45%, transparent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.35);
   }
+  .we-fab__btn--primary:hover:not(:disabled) {
+    background: linear-gradient(180deg,
+      color-mix(in srgb, var(--we-accent, #4f8cff) 100%, #fff 0%),
+      color-mix(in srgb, var(--we-accent, #4f8cff) 80%, #000 0%));
+    transform: translateY(-1px) scale(1.03);
+  }
+  .we-fab__btn--primary svg { width: 18px; height: 18px; }
   .we-fab__btn--active {
     background: #ff5555;
     border-color: #ff5555;
+  }
+  /* ── global Composer home-indicator pill ─────────────────────────────── */
+  #dsh-we-trigger {
+    position: fixed; left: 50%; bottom: 0;
+    z-index: 2147483006; width: 236px; height: 42px; padding: 18px 30px;
+    border: 0; background: transparent; cursor: pointer;
+    transform: translate3d(-50%, 0, 0);
+    transition: opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  #dsh-we-trigger::before {
+    content: ""; display: block; width: 100%; height: 6px; border-radius: 999px;
+    background: rgba(255, 255, 255, 0.46);
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    backdrop-filter: blur(12px) saturate(135%);
+    -webkit-backdrop-filter: blur(12px) saturate(135%);
+    transition: background-color 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  #dsh-we-trigger:hover::before, #dsh-we-trigger:focus-visible::before {
+    background: rgba(255, 255, 255, 0.62);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.42);
+    transform: scaleX(1.025);
+  }
+  #dsh-we-trigger:active::before { transform: scaleX(0.97); }
+  #dsh-we-trigger:focus-visible { outline: 2px solid rgba(255, 255, 255, 0.75); outline-offset: 1px; }
+  @media (prefers-reduced-motion: reduce) {
+    #dsh-we-trigger, #dsh-we-trigger::before { transition: none; }
   }
 `;
 
@@ -3478,6 +4156,8 @@ function apply(ctx) {
       syncLayers();
       applyEffects();
       void loadPersisted().then(loadInventory);
+      // centered click buttons for topbar and composer collection
+      mountUiCollectors();
       return () => {
         clientDisposed = true;
         removeStyles();
@@ -3502,6 +4182,9 @@ function apply(ctx) {
         if (scrim) scrim.remove();
         const fab = document.getElementById(FAB_ID);
         if (fab) fab.remove();
+        teardownFabOutsideDismiss();
+        teardownFabHotkeys();
+        teardownUiCollectors();
         clearEffects();
         document.body.removeAttribute(ACTIVE_ATTR);
       };
