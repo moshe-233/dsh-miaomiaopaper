@@ -6700,7 +6700,7 @@ function mountStyles() {
 }
 
 // ── Plugin exports ──────────────────────────────────────────────────────────
-const name = "@moshe233/dsh-miaomiaopaper/client";
+const name = "@moshe-233/dsh-miaomiaopaper/client";
 const inject = ["slots"];
 
 // Immersive app-window (desktop shortcut → standalone / fullscreen / minimal-ui)
