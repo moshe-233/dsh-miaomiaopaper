@@ -1,6 +1,6 @@
 # dsh-miaomiaopaper (喵喵壁纸管理器 🐾)
 
-> **本项目 Fork 自 [elysia395/dsh-wallpaper-engine](https://github.com/elysia395/dsh-wallpaper-engine) 并由 @moshe-233 进行二次开发与优化**。感谢原作者 elysia395 的杰出工作！
+> **本项目 Fork 自 [elysia395/dsh-wallpaper-engine](https://github.com/elysia395/dsh-wallpaper-engine) 并由 @moshe233 进行二次开发与优化**。感谢原作者 elysia395 的杰出工作！
 
 [English](README.en.md) | [中文](README.md)
 
@@ -109,10 +109,10 @@ Scene 壁纸的 3D 场景由本插件内置的**纯 JS 场景渲染器**（`lib/
 
 如果你只是想用这个插件，直接装 npm 上已发布的包即可：
 
-> **本 Fork（喵喵版）** 发布为 `@moshe-233/dsh-miaomiaopaper`（二开特性见上方 🐾 小节）：
+> **本 Fork（喵喵版）** 发布为 `@moshe233/dsh-miaomiaopaper`（二开特性见上方 🐾 小节）：
 >
 > ```sh
-> dsh plugin --profile web add @moshe-233/dsh-miaomiaopaper
+> dsh plugin --profile web add @moshe233/dsh-miaomiaopaper
 > ```
 >
 > 上游原版安装方式：

@@ -1,4 +1,4 @@
-# dsh-miaomiaopaper (@moshe-233 fork of dsh-wallpaper-engine)
+# dsh-miaomiaopaper (@moshe233 fork of dsh-wallpaper-engine)
 
 [English](README.en.md) | [中文](README.md)
 
@@ -158,10 +158,10 @@ since v0.4.0 — no longer in browser localStorage.**
 
 If you simply want to use the plugin, install the published package from npm:
 
-> **This fork** is published as `@moshe-233/dsh-miaomiaopaper` (see its README section above for fork-only features):
+> **This fork** is published as `@moshe233/dsh-miaomiaopaper` (see its README section above for fork-only features):
 >
 > ```sh
-> dsh plugin --profile web add @moshe-233/dsh-miaomiaopaper
+> dsh plugin --profile web add @moshe233/dsh-miaomiaopaper
 > ```
 >
 > The upstream original installs as:
