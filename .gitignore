@@ -1,6 +1,11 @@
 node_modules/
 *.log
 *.tgz
+.env
+.env.*
+*.pem
+*.key
+.npmrc
 .playwright-mcp/
 .test-cache/
 scene-diagnosis.tsv
