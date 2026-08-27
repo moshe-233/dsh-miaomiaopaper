@@ -42,6 +42,7 @@
     "lib/we-renderer/",
     "lib/apng-encode.js",
     "lib/font-render.js",
+    "lib/scene-script-apis.js",
     "lib/scene-scripts.js",
     "lib/scene-manifest.js",
     "lib/scene-player.js",
