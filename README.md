@@ -32,6 +32,18 @@
 - **壁纸效果调节条扩充**（v0.6.x）：「壁纸效果」区新增 **亮度 / 对比度 / 饱和度** 三个滑动条（作用于壁纸媒体滤镜），与壁纸模糊 / 暗化等配合，任意壁纸都能调到与界面融合舒服的状态；全部即时生效、持久保存。
 - **字体自定义**（v0.6.7）：设置新增「字体」分区——总开关默认关闭（即 dsh 原生外观），开启后可调 **字体颜色 / 字重(100–900) / 字体族**（默认 · 雅黑 · 楷体 · 宋体 · 黑体 · 行楷 · 等宽，选项按钮以各自字体实时预览）；报错红字不受染色影响，关闭总开关即一键恢复默认。
 
+### 🐾 本 Fork 的二开特性（v0.6.8-miao）
+
+在 v0.6.8 上游基础上，本 fork 额外提供以下功能（全部已适配上游最新架构）：
+
+- **🎵 视频音量与静音控制**：「壁纸效果」区新增 **音量** 滑动条（0–100%）与 **壁纸静音** 开关（仅视频壁纸显示），即时作用于正在播放的 `<video>`；悬浮球展开菜单里也有同款横向音量条。
+- **🔘 桌面悬浮快捷球 (FAB)**：屏幕四角可选的快捷控制器——黑胶唱片 + 展开菜单（上/下一张、播放暂停、静音、音量条、当前轮播列表快速切换）；支持 `Alt + ←/→` 切换壁纸、`Alt + ↓` 展开收起；设置里可开关与调整位置。视频播完自动连播时，唱片会随播放旋转。
+- **🎬 视频专属轮播列表**：新建列表时可选「**视频列表**」——只收视频壁纸，播放方式支持 **顺序播放 / 单曲循环 / 随机**；**视频播完自动切换下一部**（无需定时器），单曲循环则由原生 loop 接管；手动上一部/下一部照常可用。
+- **📁 本地 Drop-in 支持**：把任意 `*.mp4/jpg/png` 直接**复制进上传目录**即可被识别为壁纸（id 稳定、重启不丢），卡片带「本地」徽标；选择器新增 **来源筛选**（全部 / 创意工坊 / 本地上传）。
+- **🖼️ 视频封面自动提取**：本地/上传的视频自动用 ffmpeg 抽取海报帧作为缩略图（缓存于 `cache/thumbs`），不再显示「无预览」占位图。
+- **📦 大文件上传**：上传上限从 512MB 提升到 **2GB**，可用环境变量 `DSH_WE_UPLOAD_MAX_MB` 自定义；错误提示动态显示当前上限。
+- **🖥️ WSL2 深度适配**：Steam 库路径探测覆盖 `/mnt/<盘符>` 常见位置并自动转换 VDF 里的 Windows 路径；Wallpaper Engine 安装探测同时识别 `wallpaper32.exe` / `wallpaper64.exe`。
+
 ![基础效果展示](docs/images/showcase.png)
 
 > 壁纸 + 磨砂遮罩 + iOS 液态玻璃，渲染在 DSH 界面后方。
@@ -97,6 +109,14 @@ Scene 壁纸的 3D 场景由本插件内置的**纯 JS 场景渲染器**（`lib/
 
 如果你只是想用这个插件，直接装 npm 上已发布的包即可：
 
+> **本 Fork（喵喵版）** 发布为 `@moshe-233/dsh-miaomiaopaper`（二开特性见上方 🐾 小节）：
+>
+> ```sh
+> dsh plugin --profile web add @moshe-233/dsh-miaomiaopaper
+> ```
+>
+> 上游原版安装方式：
+
 ```sh
 dsh plugin --profile web add dsh-plugin-wallpaper-engine
 ```
@@ -120,8 +140,10 @@ dsh plugin --profile web add dsh-plugin-wallpaper-engine
 > 这里 *checkout* 的意思很简单：就是「把源代码下载/复制一份到你电脑的某个文件夹里」。通常在这个 GitHub 页面点 **Code → Download ZIP** 下载并解压，或用 Git 克隆：
 >
 > ```sh
-> git clone https://github.com/elysia395/dsh-wallpaper-engine.git
+> git clone https://github.com/moshe-233/dsh-miaomiaopaper.git
 > ```
+>
+> （上游原版：`git clone https://github.com/elysia395/dsh-wallpaper-engine.git`）
 >
 > 完成后你会得到一个包含 `package.json`、`lib/`、`src/`、`cordis.patch.yml` 的文件夹。下文把这个文件夹称作**插件文件夹**。
 
@@ -321,6 +343,7 @@ dsh plugin --profile web add link:./dsh-wallpaper-engine
 | `DSH_WE_FFMPEG_URL` | 替换自动下载源（自建镜像 / 代理加速） |
 | `DSH_WE_CACHE_DIR` | 覆盖缓存根目录（抽帧转码缓存 / 场景静态帧缓存） |
 | `DSH_WE_STEAM_ROOT` | 显式指定 Steam 根目录（逗号/分号分隔，Windows 或 `/mnt` 路径；注册表/自动探测失效时的兜底） |
+| `DSH_WE_UPLOAD_MAX_MB` | 上传体积上限（MB，正整数）；默认 **2048**（2GB）— 本 fork 二开特性 |
 
 ## 与 dsh-better-sidebar 的兼容适配
 

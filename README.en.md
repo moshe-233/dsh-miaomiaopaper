@@ -1,4 +1,4 @@
-# dsh-plugin-wallpaper-engine
+# dsh-miaomiaopaper (@moshe-233 fork of dsh-wallpaper-engine)
 
 [English](README.en.md) | [中文](README.md)
 
@@ -29,6 +29,18 @@ It discovers the Wallpaper Engine install on your machine, lists its wallpapers,
 - **Decode frame-rate cap (frame-skip transcode)** — high-fps sources (e.g. 4K120 H.264) are the dominant GPU cost (~60% Video Decode at 1.0x on a 4060). The **帧率上限** control (unlimited / 60 / 48 / 30 / 24 fps) has the host re-encode the wallpaper ONCE to the capped fps (timeline stays 1.0x normal speed, fully decoupled from 倍速) as **4K-preserving AV1**, with a **live download/transcode progress bar**; measured 4K120→24fps drops GPU from ~60% to **~15%**. ffmpeg is provisioned in three tiers: explicit path → **auto-download** (npmmirror + GitHub dual-source race, cross-platform asset table verified) → system PATH.
 - **Wallpaper-effect tuning sliders** (v0.6.x) — the **壁纸效果** area gains three new sliders: **亮度 / 对比度 / 饱和度** (wallpaper media filter), alongside wallpaper blur / scrim etc., so any wallpaper can be blended comfortably with the UI. All apply instantly and persist.
 - **Custom typography** (v0.6.7) — a new **字体** section in settings. The master switch defaults to off (stock dsh look); once enabled you can tune **font color / weight (100–900) / family** (default · YaHei · KaiTi · SimSun · SimHei · 行楷 Xingkai · monospace, each chip previewed in its own font). Error/danger/warning text keeps its system red; toggling the switch off restores defaults in one click.
+
+### 🐾 Fork-specific features (v0.6.8-miao)
+
+On top of upstream v0.6.8, this fork adds the following (all ported to the new architecture):
+
+- **🎵 Video volume & mute** — a **音量** slider (0–100%) and a **壁纸静音** mute toggle in the wallpaper-effects area (video wallpapers only), applied instantly to the playing `<video>`; the floating orb's expanded menu carries the same horizontal fader.
+- **🔘 Floating quick orb (FAB)** — a screen-corner quick controller: vinyl disc + expandable menu (prev/next, play/pause, mute, volume slider, one-click switch across the active rotation list); `Alt + ←/→` steps wallpapers, `Alt + ↓` toggles the menu; on/off + corner position configurable in settings.
+- **🎬 Video-only rotation lists** — when creating a list you can pick "视频列表": video entries only, with **sequence / loop-current / random** modes; the next video starts automatically when one **ends** (no timer needed).
+- **📁 Drop-in media** — copy any `*.mp4/jpg/png` straight into the uploads directory and it is listed as a wallpaper (stable id, survives restarts) with a「本地」badge; the picker gains a **source filter** (all / workshop / local).
+- **🖼️ Auto video thumbnails** — uploaded/drop-in videos get an ffmpeg-extracted poster frame (cached under `cache/thumbs`) instead of the "无预览" placeholder.
+- **📦 Bigger uploads** — the upload cap is raised from 512 MB to **2 GB**, override with `DSH_WE_UPLOAD_MAX_MB`; error messages show the current cap dynamically.
+- **🖥️ Deeper WSL2 support** — Steam-library probing covers common `/mnt/<drive>` locations and translates Windows paths from VDF; the Wallpaper Engine install probe accepts both `wallpaper32.exe` and `wallpaper64.exe`.
 
 ![Wallpaper showcase](docs/images/showcase.png)
 
@@ -145,6 +157,14 @@ since v0.4.0 — no longer in browser localStorage.**
 ### For users (published version, recommended)
 
 If you simply want to use the plugin, install the published package from npm:
+
+> **This fork** is published as `@moshe-233/dsh-miaomiaopaper` (see its README section above for fork-only features):
+>
+> ```sh
+> dsh plugin --profile web add @moshe-233/dsh-miaomiaopaper
+> ```
+>
+> The upstream original installs as:
 
 ```sh
 dsh plugin --profile web add dsh-plugin-wallpaper-engine
