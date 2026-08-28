@@ -5093,7 +5093,7 @@ function UpdateNotice() {
 const CSS = `
   /* Wallpaper layer: a fixed child of <body>, sunk BELOW the app frame. */
   .dsh-we-status-hidden { display: none !important; }
-  body[data-we-wallpaper] { isolation: isolate; }
+  /* body[data-we-wallpaper] isolation removed for layer tree safety */
   .we-layer { position: fixed; inset: 0; z-index: -2; isolation: auto; overflow: hidden; pointer-events: none; }
   body > #root[data-dsh-we-host-layer] { isolation: auto; }
   /* Blurring via CSS filter darkens/thins the edges, so the layer is scaled up
@@ -5353,10 +5353,23 @@ const CSS = `
      translucent glass base + backdrop blur + specular sheen + inner highlight,
      with the accent color remapped to --we-accent (配色) and all surface alphas
      driven by --we-glass-alpha (玻璃透明度). Off = stock shell look. ── */
-    /* Guarantee settings dialog & its overlay sit above any sidebars / portaled drawers */
-  div:has(> [role="dialog"]:has([data-slot="settings.section"])),
-  [role="dialog"]:has([data-slot="settings.section"]) {
+    /* Guarantee settings dialog & its overlay sit above any sidebars / portaled drawers,
+     and anchor to full viewport (100vw/100vh) even when #root is squeezed by sidebars */
+  div:has(> [role="dialog"]:has([data-slot="settings.section"])) {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
     z-index: 10005 !important;
+  }
+  /* Disable mask backdrop-filter to prevent 3-way backdrop-filter collision in Chromium */
+  div:has(> [role="dialog"]:has([data-slot="settings.section"])) > div:first-child {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  [role="dialog"]:has([data-slot="settings.section"]) {
+    position: relative !important;
+    z-index: 10006 !important;
   }
   body[data-we-glass-window] [role="dialog"]:has([data-slot="settings.section"]) {
     /* Glass surface alphas (light scheme): the base tint is --we-glass-color
