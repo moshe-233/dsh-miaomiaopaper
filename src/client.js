@@ -5095,7 +5095,7 @@ const CSS = `
   .dsh-we-status-hidden { display: none !important; }
   body[data-we-wallpaper] { isolation: isolate; }
   .we-layer { position: fixed; inset: 0; z-index: -2; isolation: auto; overflow: hidden; pointer-events: none; }
-  body > #root[data-dsh-we-host-layer] { position: relative; z-index: 1; }
+  body > #root[data-dsh-we-host-layer] { isolation: auto; }
   /* Blurring via CSS filter darkens/thins the edges, so the layer is scaled up
      (--we-wallpaper-scale tracks blur) to hide the transparent fringe the blur
      would otherwise reveal at the viewport edges. */
@@ -5353,6 +5353,11 @@ const CSS = `
      translucent glass base + backdrop blur + specular sheen + inner highlight,
      with the accent color remapped to --we-accent (配色) and all surface alphas
      driven by --we-glass-alpha (玻璃透明度). Off = stock shell look. ── */
+    /* Guarantee settings dialog & its overlay sit above any sidebars / portaled drawers */
+  div:has(> [role="dialog"]:has([data-slot="settings.section"])),
+  [role="dialog"]:has([data-slot="settings.section"]) {
+    z-index: 10005 !important;
+  }
   body[data-we-glass-window] [role="dialog"]:has([data-slot="settings.section"]) {
     /* Glass surface alphas (light scheme): the base tint is --we-glass-color
        (玻璃颜色) mixed with transparent at the 玻璃透明度-driven alpha, so the

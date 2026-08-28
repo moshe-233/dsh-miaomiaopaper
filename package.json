@@ -1,6 +1,6 @@
 {
   "name": "@moshe233/dsh-miaomiaopaper",
-  "version": "0.6.8-miao",
+  "version": "0.6.9-miao",
   "description": "dsh-miaomiaopaper: 喵喵壁纸管理器 - Wallpaper Engine backgrounds & liquid glass for DSH web GUI (Forked and customized from elysia395/dsh-wallpaper-engine)",
   "type": "module",
   "main": "lib/index.js",
