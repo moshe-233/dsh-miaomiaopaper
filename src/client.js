@@ -2428,6 +2428,9 @@ function probeStatusBar() {
 
 let hiddenStatusBar = null;
 function refreshStatusBar() {
+  return;
+}
+function _disabled_refreshStatusBar() {
   if (typeof document === "undefined") return;
   if (hiddenStatusBar && hiddenStatusBar.classList) {
     hiddenStatusBar.classList.remove("dsh-we-status-hidden");
@@ -2564,7 +2567,7 @@ function mountUiCollectors() {
   };
   refreshAll();
   let observer = null;
-  if (typeof MutationObserver === "function" && document.body) {
+  if (false && typeof MutationObserver === "function" && document.body) {
     observer = new MutationObserver(refreshAll);
     observer.observe(document.body, { childList: true, subtree: true });
     cleanups.push(() => observer.disconnect());
