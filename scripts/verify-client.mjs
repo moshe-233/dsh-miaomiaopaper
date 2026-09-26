@@ -311,6 +311,27 @@ assert.ok(
 );
 assert.ok(code.includes('body[data-we-wallpaper] {'), 'non-sidebar wallpaper effects must remain wallpaper-gated');
 console.log('sidebar glass selectors are wallpaper-independent: true');
+
+// ── [local-patch] CSS 注入版本守卫 ────────────────────────────────────────────
+// 这个插件用「同一个 TAG_ID + querySelector 去重」注入 <style>：页面上已有同
+// TAG_ID 的旧样式表时，新 CSS 永远不会被加载。所以**每次改 CSS 都必须 bump
+// TAG_ID**，否则新规则静默失效、控件退回浏览器默认外观（真事故：侧栏收纳按钮
+// 渲染成灰底方块 + 窄轨下文字竖排，就是因为迁移时改了 CSS 却没 bump）。
+// 这里锁定「TAG_ID 必须 ≥ v4」——低于它就说明有人回退了这次 bump。
+{
+  const m = code.match(/styles-v(\d+)/);
+  assert.ok(m, 'the stylesheet injection must carry a versioned TAG_ID');
+  const tagV = Number(m[1]);
+  console.log('stylesheet TAG_ID version:', tagV);
+  assert.ok(tagV >= 4,
+    'TAG_ID must be >= v4: the sidebar-button migration changed the CSS, so the '
+    + 'tag has to move past v3 or the new rules never load (stale stylesheet wins)');
+  // 侧栏按钮的新规则必须在同一份 CSS 文本里（防止规则被误删）。
+  assert.ok(code.includes('.we-sidebar-entry{') || code.includes('.we-sidebar-entry {'),
+    'the sidebar entry CSS rules must ship with the bundle');
+  assert.ok(!code.includes('#dsh-we-trigger {'),
+    'the legacy bottom-pill CSS must be gone (its trigger node no longer exists)');
+}
 const cap = { handoff: null };
 const sandbox = {
   window: {
@@ -1058,8 +1079,10 @@ setTimeout(async () => {
       assert.ok(entry && typeof entry.render === 'function', 'the sidebar entry must expose a render fn');
       const btn = entry.render({ wide: false });
       assert.ok(btn && btn.type === 'button', 'the sidebar entry must render a <button>');
-      assert.ok(String(btn.props.className).includes('we-sidebar-collapse-btn'),
+      assert.ok(String(btn.props.className).includes('we-sidebar-entry'),
         'the button must carry the plugin sidebar class');
+      assert.ok(String(btn.props.className).includes('we-sidebar-entry-rail'),
+        'narrow (rail) layout must add the -rail class');
 
       // 未折叠：可用、下箭头（收起语义）、aria-pressed=false。
       console.log('sidebar toggle available:', !btn.props.disabled);
@@ -1097,24 +1120,41 @@ setTimeout(async () => {
       const btnBack = entry.render({ wide: false });
       assert.equal(btnBack.props['aria-pressed'], 'false', 'expanding must clear the pressed state');
 
-      // 宽栏（wide=true）与窄轨（56px rail）都必须渲染同一个按钮 —— 宿主
-      // 用 props.wide 区分，插件据此切换 is-rail（正方形、只图标）与文字标签。
+      // ── 宽栏 / 窄轨两态（仿 dsh-context 的 makeOverviewButton 结构）──────
+      // 宿主用 props.wide 区分：宽栏 = 图标 + 文字标签，窄轨（56px）= 圆形、
+      // 只渲染图标（不渲染标签节点）。
+      const childKinds = (el) => (el.children || []).filter((c) => c && typeof c === 'object' && !Array.isArray(c));
+      const svgOf = (el) => {
+        // children 可能是 [svg, span] 或扁平化后的数组。
+        const flat = [];
+        const push = (x) => { if (Array.isArray(x)) x.forEach(push); else if (x && typeof x === 'object') flat.push(x); };
+        push(el.children);
+        return flat;
+      };
       const btnWide = entry.render({ wide: true });
-      assert.ok(btnWide && String(btnWide.props.className).includes('we-sidebar-collapse-btn'),
-        'the toggle must render identically in the wide layout');
-      assert.ok(!String(btnWide.props.className).includes('is-rail'),
-        'the wide layout must NOT use the rail sizing');
+      assert.ok(btnWide && String(btnWide.props.className).includes('we-sidebar-entry'),
+        'the toggle must render the sidebar entry class in the wide layout');
+      assert.ok(!String(btnWide.props.className).includes('we-sidebar-entry-rail'),
+        'the wide layout must NOT use the rail class');
+      const wideKids = svgOf(btnWide);
+      console.log('wide layout: icon + label =', wideKids.length);
+      assert.equal(wideKids.length, 2,
+        'the wide button must render exactly [icon, label]');
+      assert.equal(wideKids[0].type, 'svg', 'the wide button must lead with the icon');
+      assert.equal(wideKids[0].props.width, 16, 'the wide icon must be 16px (host convention)');
+      assert.equal(wideKids[1].type, 'span', 'the wide button must follow with the label span');
+      assert.ok(String(wideKids[1].props.className).includes('we-sidebar-entry-label'),
+        'the label must carry the plugin label class');
+
       const btnRail = entry.render({ wide: false });
-      assert.ok(String(btnRail.props.className).includes('is-rail'),
-        'the 56px rail must use the square rail sizing');
-      // 两者都要带文字标签节点（窄轨由 CSS 隐藏，而非不渲染 —— 保住可访问名）。
-      const childKinds = (el) => (el.children || []).filter((c) => c && typeof c === 'object');
-      console.log('sidebar toggle keeps its text label in both layouts:',
-        childKinds(btnWide).some((c) => c.props && String(c.props.className).includes('we-sidebar-collapse-label')));
-      assert.ok(childKinds(btnWide).some((c) => c.props && String(c.props.className).includes('we-sidebar-collapse-label')),
-        'the wide button must carry a text label');
-      assert.ok(childKinds(btnRail).some((c) => c.props && String(c.props.className).includes('we-sidebar-collapse-label')),
-        'the rail button must still render the label node (CSS hides it)');
+      assert.ok(String(btnRail.props.className).includes('we-sidebar-entry-rail'),
+        'the 56px rail must use the rail class');
+      const railKids = svgOf(btnRail);
+      console.log('rail layout: children =', railKids.length);
+      assert.equal(railKids.length, 1,
+        'the rail button must render ONLY the icon (no label node)');
+      assert.equal(railKids[0].type, 'svg', 'the rail child must be the icon');
+      assert.equal(railKids[0].props.width, 18, 'the rail icon must be 18px (host convention)');
 
       // ── 宿主重挂输入框：折叠态必须跟着走，且旧节点的样式要被还原 ─────────
       // 切会话/路由变化时 DSH 会换掉 composer 容器。真实的接管路径是

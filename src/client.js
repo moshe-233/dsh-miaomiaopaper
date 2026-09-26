@@ -5456,39 +5456,45 @@ const FAB_PAUSE_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="cu
 const FAB_MUTE_ICON_MUTED = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>';
 const FAB_MUTE_ICON_ON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>';
 
-// ── [local-patch] 界面收纳：侧栏图标按钮的两态图标 ──────────────────────────
-// 「收起输入框」= 一个向下收拢的双箭头（把底部输入框压下去）；「展开」= 反向。
-// 与宿主侧栏图标同为 1.75px stroke、圆角端点，20px 画布内 1.5px 视觉线宽，
-// 与 .we-sidebar-collapse-btn 的 18px 渲染尺寸匹配。
-function collapseChevronSvg(up) {
+// ── [local-patch] 界面收纳：侧栏按钮的两态图标 ──────────────────────────────
+// 「收起输入框」= 向下收拢的箭头（把底部输入框压下去）；「展开」= 反向。
+// 与同槽位邻居 dsh-context 的 ContextIcon 同规格：stroke 1.75、圆角端点，
+// 渲染尺寸随 wide 变（宽栏 16 / 窄轨 18，见 makeOverviewButton 的 size 逻辑）。
+function collapseChevronSvg(up, size) {
   return React.createElement("svg", {
-    width: 18, height: 18, viewBox: "0 0 24 24",
+    width: size, height: size, viewBox: "0 0 24 24",
     fill: "none", stroke: "currentColor",
     strokeWidth: 1.75, strokeLinecap: "round", strokeLinejoin: "round",
+    className: "we-sidebar-entry-icon",
     "aria-hidden": "true",
   }, React.createElement("polyline", { points: up ? "6,14 12,8 18,14" : "6,10 12,16 18,10" }));
 }
 
 // [local-patch] 侧栏「收起 / 展开输入框」按钮 —— 注册进宿主 sidebar.footer.action
-// 槽位（kind: list；与宿主自己的设置按钮并列在侧栏底部）。
-// 契约（读自宿主 dsh-client-ui-cordis 与 slots 文档）：
-//   * register 定义对象：{ name, id, order, label }；id 必填且用自有 id
-//     （会作为新增项并列，不替换宿主已有的格子）。
-//   * 组件 props：{ wide } —— false = 56px 窄轨（只显示图标），true = 宽栏。
-//   * 宿主在 footerActions（display:flex）里渲染，所以按钮自带尺寸即可。
+// 槽位（kind: list；与 dsh-context 的「上下文洞察」并排渲染在侧栏底部）。
+// 结构完全仿照 dsh-context 的 makeOverviewButton：
+//   * className 用 wide === true 区分主/轨两态（轨态加 -rail 后缀）
+//   * title 与 aria-label 同文案
+//   * children = [图标, wide === true && 标签]  —— 窄轨不渲染标签节点
+//   * 图标 size 随 wide 变（16 / 18）
 // 状态来源：composerCollapsed 是唯一状态源；点击走 toggleComposerCollapsed()，
-// 并额外订阅插件 store，让「输入框被宿主重挂」等情况也能刷新按钮外观。
+// 并订阅插件 store，让「宿主重挂输入框」等情况也能刷新按钮外观。
 function SidebarComposerToggle(props) {
-  const wide = Boolean(props && props.wide);
+  const wide = props && props.wide === true;
   // 订阅插件 store：emit() 时重渲染（拿最新的折叠态 / 可用性）。
   const [, setTick] = React.useState(0);
   React.useEffect(() => subscribe(() => setTick((n) => n + 1)), []);
   const collapsed = composerCollapsed;
   const available = composerToggleAvailable();
   const label = collapsed ? "展开输入框" : "收起输入框";
-  const cls = "we-sidebar-collapse-btn"
-    + (wide ? "" : " is-rail")
+  const cls = "we-sidebar-entry" + (wide ? "" : " we-sidebar-entry-rail")
     + (collapsed ? " is-collapsed" : "");
+  const children = [collapseChevronSvg(collapsed, wide ? 16 : 18)];
+  if (wide) {
+    children.push(React.createElement("span", {
+      className: "we-sidebar-entry-label",
+    }, label));
+  }
   return React.createElement("button", {
     type: "button",
     className: cls,
@@ -5500,10 +5506,7 @@ function SidebarComposerToggle(props) {
       toggleComposerCollapsed();
       emit();
     },
-  },
-  collapseChevronSvg(collapsed),
-  // 宽栏才给文字标签：窄轨（56px）没有横向空间，由 CSS 的 .is-rail 兜底隐藏。
-  React.createElement("span", { className: "we-sidebar-collapse-label" }, label));
+  }, children);
 }
 
 function refreshFloatingOrbState() {
@@ -11034,56 +11037,49 @@ const CSS = `
      一个与「收起输入框」语义无关的常驻装饰，还压住壁纸下缘。触发入口改为
      宿主侧栏里的一个原生风格按钮（经 slots 注册的 React 组件）。
 
-     尺寸/圆角/悬停严格对齐宿主自己的 footer 按钮约定（读自
-     dsh-client-ui-settings-general 的 .trigger / .trigger.rail）：
-       宽栏：height 42px、flex:1、padding 0 10px 0 8px、gap 8px、14px 文字
-       窄轨（56px rail）：36×36、flex:none、padding 0、仅图标居中
-     —— 不写 width:100%，那是横向 flex 容器里的错误约定（会挤压同行的
-     其它 action），窄轨下也会变成非正方形。 */
-  .we-sidebar-collapse-btn {
+     尺寸/圆角/悬停严格对齐同槽位邻居 dsh-context 的 .lc-ov-entry —— 它和
+     本按钮并排渲染在 .footerActions 里，样式必须一致才不会显得突兀：
+       宽栏：height 42px、width calc(100% + 4px)、margin 0 -2px、
+             padding 0 10px 0 8px、gap 8px、radius 12px、14px 文字
+       窄轨：36×36、radius 50%（圆形）、flex:none、padding 0、仅图标
+     踩过的坑（务必保留这段注释）：
+       ① 不要用 flex:1 / width:100% —— 横向容器里会挤压同行的其它 action；
+       ② 窄轨圆角是 50%（圆），不是 36px 方角；
+       ③ CSS 改了必须同时 bump TAG_ID，否则旧 <style> 让新规则永不加载，
+          按钮退回浏览器默认样式（灰底方块 + 窄轨文字竖排）。 */
+  .we-sidebar-entry {
     box-sizing: border-box;
-    display: inline-flex; align-items: center; gap: 8px;
-    flex: 1; min-width: 0; height: 42px; margin: 0; padding: 0 10px 0 8px;
+    width: calc(100% + 4px); height: 42px;
+    color: var(--dsw-alias-label-primary);
+    cursor: pointer; background: 0 0; border: 0; border-radius: 12px;
+    align-items: center; gap: 8px; margin: 0 -2px; padding: 0 10px 0 8px;
     font-family: inherit; font-size: 14px; line-height: 22px;
-    border: 0; border-radius: var(--dsw-radius-md, 12px);
-    background: transparent; color: var(--dsw-alias-label-primary, inherit);
-    cursor: pointer; overflow: hidden;
-    transition: background-color 0.16s ease, color 0.16s ease;
+    display: flex; overflow: hidden;
   }
-  .we-sidebar-collapse-btn:hover:not(:disabled) {
-    background: var(--dsw-alias-interactive-bg-hover, rgba(128, 128, 128, 0.12));
+  .we-sidebar-entry:hover:not(:disabled) {
+    background: var(--dsw-alias-interactive-bg-hover);
   }
-  .we-sidebar-collapse-btn:focus-visible {
-    outline: var(--dsw-focus-ring-width, 2px) solid
-      var(--dsw-focus-ring-color, var(--we-accent, #4f8cff));
-    outline-offset: -2px;
+  .we-sidebar-entry:disabled { opacity: 0.42; cursor: default; }
+  .we-sidebar-entry-rail {
+    border-radius: 50%; flex: none; justify-content: center; gap: 0;
+    width: 36px; height: 36px; margin: 0; padding: 0;
   }
-  .we-sidebar-collapse-btn:disabled { opacity: 0.42; cursor: default; }
-  .we-sidebar-collapse-btn svg { flex: none; display: block; }
-  .we-sidebar-collapse-btn .we-sidebar-collapse-label {
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  .we-sidebar-entry-icon { flex: none; }
+  .we-sidebar-entry-label {
+    text-align: left; white-space: nowrap; text-overflow: ellipsis;
+    flex: auto; min-width: 0; overflow: hidden;
   }
-  /* 窄轨（56px rail）：宿主给组件的是 wide=false，按钮收成正方形、只留图标。 */
-  .we-sidebar-collapse-btn.is-rail {
-    flex: none; justify-content: center; gap: 0;
-    width: 36px; height: 36px; padding: 0;
-  }
-  .we-sidebar-collapse-btn.is-rail .we-sidebar-collapse-label { display: none; }
   /* 折叠生效时用 accent 色标注，一眼可辨「输入框当前是收起的」。 */
-  .we-sidebar-collapse-btn.is-collapsed {
+  .we-sidebar-entry.is-collapsed {
     color: var(--we-accent, var(--dsw-alias-brand-primary, #4f8cff));
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .we-sidebar-collapse-btn { transition: none; }
   }
 `;
 
-// Bumped v3: tabbed picker IA + unified control chrome (sliding segmented tab
-// bar, pill switches everywhere, ink-token labels, 30px control heights).
-// Forces a fresh <style> injection even when a page still carries the
-// old stylesheet tag from a previous bundle (TAG_ID dedupes the injection; a
-// static id would leave stale CSS rules active and new rules missing).
-const TAG_ID = "dsh-wallpaper-engine/styles-v3";
+// Bumped v4: 界面收纳按钮从底部白杠药丸迁到宿主左侧边栏（sidebar.footer.action）。
+// CSS 变了就必须 bump —— 否则页面上残留的旧 <style>（同 TAG_ID）会把注入去重掉，
+// 新规则永远不加载、按钮退回浏览器默认样式（这条注释警告的正是这个坑，
+// 11087 那次迁移就踩了：按钮渲染成灰底方块 + 窄轨下文字竖排）。
+const TAG_ID = "dsh-wallpaper-engine/styles-v4";
 if (typeof document !== "undefined" &&
     document.querySelector("style[data-plugin-css=" + JSON.stringify(TAG_ID) + "]") === null) {
   const tag = document.createElement("style");
