@@ -5251,39 +5251,11 @@ function teardownFabHotkeys() {
 }
 
 // ── [local-patch] UI-collection (收纳) chrome ────────────────────────────────
-// Two independent collectors that fold up host chrome so the wallpaper fills
-// the viewport:
-//   1. TopBar collapse button — a slim pill docked at a corner; click toggles
-//      the app top bar (probed geometrically, like dsh-zen's findChrome).
-//   2. Composer white trigger bar — an iPad-style home-indicator pill at the
-//      bottom; collapses/expands the composer (input dock) only, with three
-//      selectable trigger modes (click / swipe / dockbtn).
-// Both read their knobs from the persisted settings and re-apply on change.
+// Composer trigger bar — an iPad-style home-indicator pill at the bottom;
+// collapses/expands the composer (input dock) so the wallpaper fills the
+// viewport. Triggered from the 高级 → 界面收纳 button (runtime-only).
 
 const TRIGGER_ID = "dsh-we-trigger";
-
-function probeTopbar() {
-  // Top bar: a wide, short strip pinned to the top of the viewport. Return
-  // the best candidate (largest area) matching that profile.
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  const all = document.querySelectorAll("body *");
-  let best = null, bestArea = 0;
-  for (let i = 0; i < all.length; i++) {
-    const el = all[i];
-    if (el.closest("#" + TOPBAR_BTN_ID) || el.closest("#" + TRIGGER_ID)) continue;
-    if (el.querySelector("textarea") || el.querySelector("[contenteditable]")) continue;
-    const cs = window.getComputedStyle(el);
-    if (cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0") continue;
-    const r = el.getBoundingClientRect();
-    if (r.width < vw * 0.4 || r.height < 8 || r.height > vh * 0.22) continue;
-    if (r.top > 2 && r.top > vh * 0.02) continue; // must hug the top edge
-    const area = r.width * r.height;
-    if (area < vw * vh * 0.03) continue;
-    if (area > bestArea) { bestArea = area; best = el; }
-  }
-  return best;
-}
 
 function probeComposer() {
   // Composer seat: DSH marks the input dock with [data-composer-seat]. Fall
@@ -5304,51 +5276,6 @@ function probeComposer() {
     return el;
   }
   return null;
-}
-
-function probeStatusBar() {
-  const all = document.querySelectorAll("body *");
-  const metrics = /(轮|步|token|tok\/s|缓存命中|输入|输出|首\s*token|LLM|工具调用)/i;
-  const excluded = "#" + TRIGGER_ID + ",[id^='dsh-wallpaper-engine-'],[role='dialog'],textarea,[contenteditable],input,button";
-  let best = null;
-  let bestScore = -Infinity;
-  for (let i = 0; i < all.length; i++) {
-    const el = all[i];
-    if (!el || (el.matches && el.matches(excluded)) || (el.closest && el.closest(excluded))) continue;
-    const text = String(el.textContent || "").replace(/\s+/g, " ").trim();
-    if (!text || !metrics.test(text)) continue;
-    const r = el.getBoundingClientRect();
-    if (r.width < 180 || r.height < 8 || r.height > 140 || r.bottom < window.innerHeight * 0.55) continue;
-    const cs = typeof window.getComputedStyle === "function" ? window.getComputedStyle(el) : null;
-    if (cs && (cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0")) continue;
-    // Prefer the compact row itself over an app-shell ancestor. A candidate
-    // with several metric fragments is more reliable than one matching one
-    // incidental descendant; shorter rows win ties.
-    const hits = (text.match(/轮|步|token|tok\/s|缓存命中|输入|输出|首\s*token|LLM|工具调用/gi) || []).length;
-    const compact = r.height <= 64 ? 3 : r.height <= 96 ? 1 : -3;
-    const score = hits * 20 + compact - r.height / 100 - Math.min(8, Math.abs(window.innerHeight - r.bottom) / 100);
-    if (score > bestScore) { bestScore = score; best = el; }
-  }
-  return best;
-}
-
-let hiddenStatusBar = null;
-function refreshStatusBar() {
-  return;
-}
-function _disabled_refreshStatusBar() {
-  if (typeof document === "undefined") return;
-  if (hiddenStatusBar && hiddenStatusBar.classList) {
-    hiddenStatusBar.classList.remove("dsh-we-status-hidden");
-    hiddenStatusBar.removeAttribute("data-dsh-we-status-hidden");
-  }
-  hiddenStatusBar = null;
-  const status = probeStatusBar();
-  if (!status) return;
-  hiddenStatusBar = status;
-  const hide = selection.statusBarHideEnabled !== false;
-  if (status.classList) status.classList.toggle("dsh-we-status-hidden", hide);
-  if (hide) status.setAttribute("data-dsh-we-status-hidden", "1");
 }
 
 function recomposeCollectorPositions() {
@@ -5450,34 +5377,18 @@ function mountUiCollectors() {
   if (uiCollectorsCleanup) return;
   const cleanups = [];
   let trigger = document.getElementById(TRIGGER_ID);
-  if (selection.composerHideEnabled !== false) {
-    if (!trigger) {
-      trigger = document.createElement("button");
-      trigger.id = TRIGGER_ID;
-      trigger.type = "button";
-      (document.documentElement || document.body).appendChild(trigger);
-    }
-    cleanups.push(bindComposerTrigger(trigger));
+  if (!trigger) {
+    trigger = document.createElement("button");
+    trigger.id = TRIGGER_ID;
+    trigger.type = "button";
+    (document.documentElement || document.body).appendChild(trigger);
   }
-  let refreshTimer = null;
+  cleanups.push(bindComposerTrigger(trigger));
   const refreshAll = () => {
-    if (refreshTimer != null) return;
-    const schedule = typeof window !== "undefined" && typeof window.setTimeout === "function"
-      ? window.setTimeout : setTimeout;
-    refreshTimer = schedule(() => {
-      refreshTimer = null;
-      refreshStatusBar();
-      recomposeCollectorPositions();
-      markHostUiLayer();
-    }, 0);
+    recomposeCollectorPositions();
+    markHostUiLayer();
   };
   refreshAll();
-  let observer = null;
-  if (false && typeof MutationObserver === "function" && document.body) {
-    observer = new MutationObserver(refreshAll);
-    observer.observe(document.body, { childList: true, subtree: true });
-    cleanups.push(() => observer.disconnect());
-  }
   const onResize = refreshAll;
   if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
     window.addEventListener("resize", onResize);
@@ -5485,19 +5396,6 @@ function mountUiCollectors() {
   }
   const off = subscribe(refreshAll);
   cleanups.push(off);
-  cleanups.push(() => {
-    if (refreshTimer != null) {
-      const cancel = typeof window !== "undefined" && typeof window.clearTimeout === "function"
-        ? window.clearTimeout : clearTimeout;
-      cancel(refreshTimer);
-      refreshTimer = null;
-    }
-    if (hiddenStatusBar && hiddenStatusBar.classList) {
-      hiddenStatusBar.classList.remove("dsh-we-status-hidden");
-      hiddenStatusBar.removeAttribute("data-dsh-we-status-hidden");
-      hiddenStatusBar = null;
-    }
-  });
   uiCollectorsCleanup = () => {
     for (const fn of cleanups) { try { fn(); } catch { /* ignore */ } }
     const node = document.getElementById(TRIGGER_ID);
@@ -7463,6 +7361,42 @@ function WallpaperPicker(props) {
           }),
         ),
       ),
+      // ── 悬浮球（fork 二开）：开关 + 四角位置。运行时由 syncFloatingOrb /
+      //    refreshFloatingOrbState 消费（见 syncLayers 尾部）；选角会清除
+      //    fabSnapY 回到命名锚点。
+      React.createElement("div", { className: "we-picker__ctl" },
+        ctlText("悬浮球",
+          !sel.fabEnabled ? "已关闭" : "屏幕快捷控制器 · 黑胶唱片 + 上/下一张 + 音量"),
+        React.createElement("div", { className: "we-picker__ctl-side" },
+          React.createElement("select", {
+            className: "we-picker__playlist-select",
+            value: sel.fabPosition || "bottom-right",
+            disabled: !sel.fabEnabled,
+            onChange: (e) => {
+              selection.fabPosition = e.target.value;
+              selection.fabSnapY = null;
+              persistSelection();
+              emit();
+            },
+            "aria-label": "悬浮球位置",
+          },
+          React.createElement("option", { value: "bottom-right" }, "右下角"),
+          React.createElement("option", { value: "bottom-left" }, "左下角"),
+          React.createElement("option", { value: "top-right" }, "右上角"),
+          React.createElement("option", { value: "top-left" }, "左上角"),
+          ),
+          Toggle({
+            checked: sel.fabEnabled !== false,
+            onChange: (e) => {
+              selection.fabEnabled = e.target.checked;
+              persistSelection();
+              emit();
+            },
+            label: "悬浮球",
+            title: "屏幕悬浮快捷控制器（黑胶唱片 + 播放/切换/音量菜单）",
+          }),
+        ),
+      ),
       ),
       // ── 自定义壁纸: local JPG/PNG/MP4 as wallpapers. Files are written by the
       //    host into its plugin-managed directory and served through the same
@@ -8228,6 +8162,31 @@ function WallpaperPicker(props) {
           hint: "Edge 下视频壁纸走 canvas 渲染",
           tooltip: "Edge 兼容：视频壁纸改用 canvas 渲染，避免浏览器自带的「下载 / 投屏」悬浮工具栏；关闭则始终使用原生 <video>",
         }),
+      ),
+      // ── 界面收纳（fork 二开）：输入框小药丸收起。
+      //    纯运行时开关（不持久化）：点按即在当前页面折叠/展开输入框。
+      React.createElement("div", { className: "we-picker__section" },
+        React.createElement("div", { className: "we-picker__section-head" },
+          React.createElement("span", {
+            className: "we-picker__section-label",
+            title: "收起底部输入框，让壁纸完整铺满视口；纯运行时开关，刷新页面即恢复",
+          }, "界面收纳"),
+        ),
+        React.createElement("div", { className: "we-picker__row" },
+          React.createElement("button", {
+            className: "we-picker__btn", type: "button",
+            onClick: () => {
+              try {
+                const t = typeof document !== "undefined" && document.getElementById(TRIGGER_ID);
+                if (t && typeof t.click === "function") t.click();
+              } catch {}
+              emit();
+            },
+            title: "收起 / 展开底部输入框（小药丸触发器）",
+          }, "收起输入框"),
+        ),
+        React.createElement("span", { className: "we-picker__hint" },
+          "运行时开关 · 刷新页面即恢复"),
       ),
     );
   }
