@@ -11,14 +11,15 @@ A DSH bundle that turns your **Wallpaper Engine** wallpapers into the **backgrou
 > **v0.6.4 keeps reducing the compositing layers**: the repo panel is lazy-mounted when closed, the rope has no permanent filter, and the wallpaper media no longer forces a transform compositing layer by default — whilst **keeping the full frosted glass**. Normal browser tabs are unaffected and keep the full frosted glass + hardware acceleration.
 > The plugin shows a one-time notice (once per version) about this.
 
-It discovers the Wallpaper Engine install on your machine, lists its wallpapers, and renders them behind the DSH chat interface with an iOS-style **liquid glass** effect: Video (`.mp4`) plays live, Web/HTML loads in an iframe, and **Scene wallpapers are re-rendered as full-scene frames by the built-in renderer (object tree / textures / particles / shader effects)**. Since v0.2 it also adds:
+It discovers the Wallpaper Engine install on your machine, lists its wallpapers, and renders them behind the DSH chat interface with an iOS-style **liquid glass** effect: Video (`.mp4`) plays live, Web/HTML loads in an iframe, and **Scene wallpapers are rendered in real time by the built-in WebWallGL WebGL engine (particles / scripts / parallax / packaged audio, auto-falling back to scene frames)**. Since v0.2 it also adds:
 
 - **Modal wallpaper picker** — the thumbnail grid lives in a popup modal, so the settings page stays compact;
 - **Hide / restore (soft delete)** — hide wallpapers you don't want, restore them anytime; no source files are touched;
 - **Playback speed** — six native presets from 0.5x to 2x, instant, no media reload;
 - **Horizontal flip** — mirror the image (video / web / uploaded images);
-- **Custom uploads** — use your own local JPG / PNG / MP4 as a wallpaper, with a configurable storage location and fit modes;
+- **Custom uploads** — use your own local JPG / PNG / MP4 as a wallpaper, with a configurable storage location, fit modes, and automatic thumbnails for uploaded MP4s; **WE project directories** in the storage location (scene/web/video folders containing `project.json`, e.g. a WallpaperEM downloads folder) are picked up automatically too — their scene wallpapers render live like any other;
 - **Scene full-scene frames** (v0.6) — Scene wallpapers are fully replayed by a pure-JS scene renderer (object tree / textures / particles / shader effects) instead of being an unusable "not playable" entry.
+- **Scene wallpapers in real time** (v0.8) — Scene wallpapers are now rendered live by the built-in **WebWallGL** engine (`lib/webwallgl/`, MIT, from [webwallgl](https://github.com/oneincase/webwallgl)): particle systems, puppet models, SceneScript, **mouse parallax / click interaction**, packaged audio and audio-reactive effects, at a selectable frame cap (15/30/60 fps). The renderer page runs in a same-origin isolated iframe under a **heartbeat watchdog**: first-frame timeout or a stalled runtime falls back to the embedded-MP4 → static-frame chain (remembered per wallpaper; re-toggling the switch retries).
 - **Liquid-glass settings page** (v0.3.1) — the settings UI is now a **first-level settings page** (following the dsh-web-ui-all skin-center design): the whole page is a customizable liquid-glass card with **accent color** (6 presets + a custom color picker) and **glass transparency** (0–60%). Both apply instantly and persist.
 - **Whole-settings-window liquid glass** (v0.3.2) — one click turns the **entire native DSH settings window** (dialog + left nav + ALL native sections: General / Models / Plugins / …) into liquid glass with your custom accent + transparency. With the「设置窗口液态玻璃」master switch on, the window background, nav active/hover, buttons, switches and links all follow the chosen accent and transparency; off restores the stock look.
 - **Unified glass tuning** (v0.3.3–v0.3.5) — the settings-window glass blur shares the SAME adjustment as the conversation bar: the **玻璃** (glass) slider (0–60 px) drives the blur radius of both the settings window and the composer/bubbles, with an identical saturation/brightness/contrast recipe. A new **玻璃颜色** (glass color) control lets you tint the glass BASE itself (6 presets + custom picker; defaults white in light / deep navy in dark; once picked, both themes use that color) — **配色** styles the interactive elements, **玻璃颜色** styles the glass itself.
@@ -29,6 +30,9 @@ It discovers the Wallpaper Engine install on your machine, lists its wallpapers,
 - **Decode frame-rate cap (frame-skip transcode)** — high-fps sources (e.g. 4K120 H.264) are the dominant GPU cost (~60% Video Decode at 1.0x on a 4060). The **帧率上限** control (unlimited / 60 / 48 / 30 / 24 fps) has the host re-encode the wallpaper ONCE to the capped fps (timeline stays 1.0x normal speed, fully decoupled from 倍速) as **4K-preserving AV1**, with a **live download/transcode progress bar**; measured 4K120→24fps drops GPU from ~60% to **~15%**. ffmpeg is provisioned in three tiers: explicit path → **auto-download** (npmmirror + GitHub dual-source race, cross-platform asset table verified) → system PATH.
 - **Wallpaper-effect tuning sliders** (v0.6.x) — the **壁纸效果** area gains three new sliders: **亮度 / 对比度 / 饱和度** (wallpaper media filter), alongside wallpaper blur / scrim etc., so any wallpaper can be blended comfortably with the UI. All apply instantly and persist.
 - **Custom typography** (v0.6.7) — a new **字体** section in settings. The master switch defaults to off (stock dsh look); once enabled you can tune **font color / weight (100–900) / family** (default · YaHei · KaiTi · SimSun · SimHei · 行楷 Xingkai · monospace, each chip previewed in its own font). Error/danger/warning text keeps its system red; toggling the switch off restores defaults in one click.
+- **Wallpaper opacity** ([#82](https://github.com/elysia395/dsh-wallpaper-engine/issues/82)) — a new **壁纸透明度** slider in the effects tab (0–90 %, higher = more transparent): fades the whole wallpaper layer toward the page base colour — the IDEA background-image style of "visible but not overpowering". Complements the scrim, keeping text readable.
+- **Input caret color** ([#83](https://github.com/elysia395/dsh-wallpaper-engine/issues/83)) — a new **输入光标** section on the typography tab: when the caret is hard to see against the wallpaper, pick a high-contrast color from 6 presets or the custom picker (or **自动** to restore the native dsh caret). Applies to every text input and editable area, independent of the typography master switch.
+- **Custom uploads usable + honest playback state** ([#84](https://github.com/elysia395/dsh-wallpaper-engine/issues/84)) — fixes "my uploaded video wallpaper is blank and there is no resume button": ① `uploads/.meta.json` never records a `contentrating`, so uploads used to read as **unrated** while the rating filter defaults to **Everyone** — every custom upload was filtered out by default (absent from the grid, and rejected when the upload flow auto-applied it → blank wallpaper layer + a disabled 播放 button). An upload without a rating now counts as **Everyone**, so your own files work out of the box, while an explicit G / PG13 / R tag still filters normally. ② A refused `video.play()` (autoplay policy, a codec the browser cannot decode such as HEVC/10-bit, or a play() interrupted by the next src swap) used to be swallowed silently: the panel kept saying 「播放中」 and the only control was 「暂停」 — a wallpaper frozen on its first frame with no way to resume. The control now reflects the `<video>` element's REAL state, so it returns to 「播放」 (a working retry) with a readable reason, e.g. "cannot decode this video — use H.264", and it re-issues play() automatically once the media becomes ready (an aborted play() is the most common cause of a frozen wallpaper). ③ A wallpaper dropped by a filter now says which filter excluded it instead of leaving an unexplained blank.
 
 ### 🐾 Fork-specific features (v0.6.8-miao)
 
@@ -44,7 +48,27 @@ On top of upstream v0.6.8, this fork adds the following (all ported to the new a
 
 ![Wallpaper showcase](docs/images/showcase.png)
 
+![Main interface showcase](docs/images/main-interface.gif)
+
 > Wallpaper + scrim + iOS liquid glass rendered behind the DSH GUI.
+
+## ⚠️ Prerequisites for updating: ① latest DSH kernel ② latest better-sidebar (v0.7.2+)
+
+**Do NOT update this plugin until BOTH prerequisites are met.** v0.7.2 targets DeepSeek Harness **0.1.5-rc.1** (shipped in **DSH Desktop ≥ 2.0.7**) and requires **dsh-better-sidebar ≥ 0.19.0** (from 0.19 the right column plugs into the native right sidebar of harness 0.1.5; users still on the 0.1.2-rc.1 line should keep better-sidebar 0.18.x — do not mix). The correct update order:
+
+1. **Update DeepSeek Harness / DSH Desktop first**: check for updates via the desktop app's top-bar version info, or grab the installer from [GitHub Releases](https://github.com/anywhere-labs/dsh-desktop/releases);
+2. **Then update dsh-better-sidebar to 0.19.0+**: `dsh plugin --profile web add dsh-better-sidebar@latest`;
+3. **Finally update this plugin**: `dsh plugin --profile web add dsh-plugin-wallpaper-engine` (or click update in the plugin market).
+
+> 💡 Also update your **other DSH plugins at the same time**: older plugins may fail to load outright on harness 0.1.5 (an old dsh-better-sidebar was observed misbehaving on 0.1.5 due to API changes).
+
+If you updated out of order, bringing the kernel and better-sidebar back to their matching latest versions restores everything — no plugin rollback needed. The plugin also shows a one-time in-app notice per release.
+
+> 🐛 **v0.7.2 fixes the "right sidebar fully transparent" regression and extends the glass to the native right sidebar**: the harness 0.1.5 native sidebar panel paints `var(--dsw-alias-bg-base)` — the exact token this plugin sets to transparent while a wallpaper is active — and the native panel ships no frosted glass of its own, so after moving to better-sidebar 0.19 the whole right column went see-through. From v0.7.2 the native right sidebar is covered by the「侧栏液态玻璃」adaptation: the same **侧栏模糊 / 透明度 / 玻璃颜色** sliders drive it, and with the master switch off it falls back to the theme's opaque panel colour (no longer transparent).
+
+> ✅ **v0.7.1 has been verified on DSH Desktop v2.0.5 (harness 0.1.2-rc.1)**: host routes (inventory / media / scene-frame), the first-level settings section, the picker modal, video & scene wallpaper playback, the rope-dock drawer, and the liquid-glass effects all work in both Compatibility and Enhanced desktop modes. The APIs this plugin relies on (slots / webserver / theme variables) were verified unchanged on harness 0.1.5-rc.1 as well.
+>
+> 🐛 **v0.7.1 also fixes the rc.1 "swatches / vinyl record render as rounded rectangles" regression** ([#74](https://github.com/elysia395/dsh-wallpaper-engine/issues/74)): rc.1's theme layer ships a new `corner-shape.css` that applies `corner-shape: superellipse(1.5)` (squircle-ish corners) to **every element**, so any `border-radius:50%` circle renders as a rounded rectangle. The plugin now explicitly resets `corner-shape: round` on every circle / pill control it draws (swatches, vinyl record, slider thumbs, toggle knobs, font chips, …); on older harness builds the declaration is ignored, with no side effects.
 
 ## Which wallpaper types are supported?
 
@@ -52,27 +76,105 @@ Wallpaper Engine wallpapers come in four types:
 
 | Type | Rendered by | Portable to DSH? |
 |---|---|---|
-| **Scene** | Wallpaper Engine's own 3D engine | ✅ Full-scene frame — a pure-JS scene renderer (object tree / textures / particles / shader effects), see below |
+| **Scene** | Wallpaper Engine's own 3D engine | ✅ Real-time — the built-in WebWallGL WebGL engine (particles / scripts / parallax / packaged audio); falls back to scene frames on failure |
 | **Video** | a plain `.mp4` file | ✅ Yes — plays in a `<video>` tag |
-| **Web** | a Chromium (`webwallpaper64.exe`) host for HTML | ✅ Yes — loads in an `<iframe>` |
+| **Web** | a Chromium (`webwallpaper64.exe`) host for HTML | ✅ Real-time — WebWallGL's web mount with the **injected WE API** (audio/property/media listeners) under a strict sandbox; falls back to a plain iframe on failure |
 | **Application** | an injected external window | ❌ No |
 
-A Scene wallpaper's 3D scene is fully replayed by the plugin's **pure-JS scene
-renderer** (`lib/scene-renderer.js`, built from linux-wallpaperengine / repkg
-reverse-engineering): it parses `scene.pkg`'s object tree and renders every
-image layer (with CPU implementations of shader effects like waterwaves /
-waterripple / shake), the puppet skeletal meshes (bind pose), and the particle
-systems (emitters / initializers / operators / sprite drawing). Scene cards carry
-a 「静态帧」 badge in the picker.
+Scene wallpapers are replayed in real time by the plugin's built-in **WebWallGL
+engine** (`lib/webwallgl/`, MIT, upstream [webwallgl](https://github.com/oneincase/webwallgl)):
+it parses `scene.pkg`'s object tree in WebGL2 and renders every image layer
+(shader effects translated from HLSL and executed on the GPU), puppet skeletal
+models, particle systems and text objects, runs the scene's own SceneScript —
+mouse movement drives parallax / cursor interaction, and packaged audio (BGM /
+SFX) plays under the shared volume / audio-switch settings.
 
-> **Expected result**: the renderer outputs a 3840×2160 full-scene frame
-> (background + water + back hair + character + umbrella + particles), close to
-> the original for photographic, illustration and animation-screenshot scenes.
-> On failure (pure shader/procedural scenes, exotic texture formats) it falls
-> back to the older main-texture extractor, then to the workshop preview image
-> (`preview.jpg`) — expected behaviour, not a defect.
+> **Rendering form & fallback**: the renderer page runs in a same-origin
+> isolated iframe under a **heartbeat watchdog** — a 15 s first-frame timeout,
+> or 20 s without a frame while playback is expected (after one automatic
+> recovery attempt), marks the wallpaper failed and degrades it to the
+> embedded-MP4 → static-frame chain. Loose `scene.json` directories and
+> environments without WebGL2 use that chain directly. Failure memory is
+> cleared by re-toggling 「场景实时渲染」 in the settings. The static-frame
+> chain (pure-JS scene renderer, below) remains the underlay and the fallback.
 
-### Scene rendering: how it works
+**Web wallpapers** go through WebWallGL too: the host injects the **WE API shim**
+(`wallpaperRegisterAudioListener` / `wallpaperPropertyListener` / media
+listeners, from upstream `web-shim.js`, injected into the entry HTML by
+`/scene-files`) and hands the page to the renderer — so workshop web wallpapers
+that depend on the WE API (audio visualizers, property-driven and pointer-tracking
+pages) actually run instead of rendering blank or erroring. **Security**: the
+wallpaper iframe is forced into `sandbox="allow-scripts"` (strict sandbox) so the
+third-party HTML can never inherit the DSH origin (it cannot call host APIs or
+read host storage as the app). Cross-origin control and pointer injection go
+through the renderer page's `postMessage` channel. On load failure or a stalled
+runtime the wallpaper is remembered and degrades to the legacy plain iframe
+(no WE API).
+>
+> **Payload origin (separate media origin)**: a web wallpaper's entry HTML and all of
+> its subresources are served by a **dedicated loopback media origin the host opens
+> itself** (a random port on `127.0.0.1`, reported by
+> `GET /wallpaper-engine/media-origin`) — *not* by the plugin's HTTP routes. Why: DSH
+> Desktop wraps every plugin route in a capability-header fence
+> (`x-dsh-desktop-renderer`, injected only into requests issued by same-origin
+> frames), and a strict-sandbox iframe is an opaque origin that can never carry that
+> header — the wallpaper entry would always answer `403 Forbidden` (symptom: the
+> preview frame looks fine, then the wallpaper goes fully black). The media origin
+> bypasses that fence, and third-party HTML no longer shares the host origin at all,
+> so the sandbox gets a second layer of isolation.
+>
+> **Frame cap and "it still stutters"**: the wallpaper's rAF cap is implemented by
+> **frame skipping** — every vsync is kept so the delivered frame stays phase-aligned
+> with the display and only every n-th frame reaches the page (a `setTimeout`-based cap
+> yields 17/33/50ms jitter, which looks worse). While live, a `live-fps` line is written
+> to the diagnostics file every 5 s: `ui=` whole-page fps, `web=` the wallpaper's own
+> fps, `rnd=` renderer-page fps, `cap=` the current cap. If it still feels heavy, that
+> line tells you whether the wallpaper itself is slow (`web` low) or the whole page is
+> (`ui` low too — e.g. the sidebar's `backdrop-filter` re-sampling the wallpaper every
+> frame; try lowering the blur to confirm).
+
+> **Known web-wallpaper limits**: author `fetch`/`XHR` carries `Origin: null` under
+> the opaque origin (the host answers with `Access-Control-Allow-Origin: *`, so
+> ordinary resources load); `wallpaperMediaIntegration` (system Now Playing / cover
+> art) **is** supplied by the host — see "System-audio reaction and Now Playing"
+> below; CSS `:hover` interaction driven by the browser's own hit-test cannot be
+> triggered by external pointer injection (as documented upstream).
+
+### System-audio reaction and Now Playing (song info + cover art)
+
+Two switches in the「效果」tab (both on by default):
+
+| Switch | What it does |
+|---|---|
+| **系统音频反应** | Feeds a spectrum of **whatever the system is playing** (any app) to the wallpaper's audio-reactive effects. It is the system-output **loopback**, not the microphone, and it is built in on all three platforms — no extra installs: CoreAudio on macOS, WASAPI loopback on Windows (**no "Stereo Mix" or virtual sound card needed**), PulseAudio/PipeWire on Linux. Only macOS asks once for "audio recording" permission on first use; when no audio can be captured the wallpaper falls back to its built-in simulated spectrum |
+| **媒体信息** | Hands the system **Now Playing** (title / artist / album / album artist / playback / timeline / **cover art**) to the wallpaper through the official WE APIs `wallpaperRegisterMediaPropertiesListener` / `wallpaperRegisterMediaThumbnailListener` / `wallpaperRegisterMediaPlaybackListener` (plus `…TimelineListener`) |
+| **在线歌词** | Lyrics come from local sources first (a `.lrc` next to the audio file, or an already-cached copy); when enabled, a missing lyric triggers one query to [lrclib.net](https://lrclib.net) — that request sends title/artist/album, hence **off by default** |
+
+> **Where this data comes from**: the host runs a bundled Rust middleware,
+> [media-bridge](https://github.com/oneincase/media-bridge), as a child process (stdio NDJSON;
+> downloaded on first use, sha256-verified, cached under `~/.dsh-wallpaper-engine/bin/`) —
+> MediaRemote on macOS, the system media session (GSMTC) on Windows, MPRIS over D-Bus on Linux;
+> system audio comes from a CoreAudio Process Tap (14.2+), WASAPI loopback and PulseAudio/PipeWire
+> monitors respectively. So `brew install media-control`, `playerctl`, "Stereo Mix"/VB-Cable and
+> even compiling a Swift helper on your machine (Xcode Command Line Tools) are all no longer needed.
+> When the middleware cannot be fetched or started, the plugin falls back to its built-in
+> implementation and reports the reason in `GET /wallpaper-engine/media-status` (`fallback`).
+>
+> **Cover art**: written by the middleware under a content-fingerprinted name (a new file per
+> track), proxied by the host at `/wallpaper-engine/now-playing/artwork`, then downscaled to 512²
+> and converted to a **self-contained data URL** before it reaches the wallpaper — plugin routes
+> are fenced by the host capability gate on Desktop (a cross-origin sandboxed wallpaper cannot
+> fetch them), while a data URL depends on no origin and can be drawn into a canvas untainted.
+>
+> **Who owns the timeline (renderer side)**: the bundled WebWallGL page ships a demo media
+> source (so previews look alive) that only steps in when the host provides **no** media.
+> As soon as the host pushes a snapshot with `hasMedia`, that source is stored on the
+> renderer's `rt.mediaSource` and properties / thumbnail / playback / position / duration
+> all follow the host. (Older renderer builds kept pushing the demo source's fake progress
+> once per second and overwrote the host's timeline — fixed in WebWallGL, and the plugin's
+> real-browser end-to-end test now guards it.)
+
+### Static-frame fallback: how it works
 
 - **Object tree**: parses `scene.pkg` (PKGV container + LZ4 entry chains) or a
   loose `scene.json` directory, topologically sorts every object (image /
@@ -89,6 +191,11 @@ a 「静态帧」 badge in the picker.
 - **particle systems**: boxrandom / sphererandom emitters, color / size / alpha /
   lifetime / velocity / rotation initializers, movement / alphafade / sizechange /
   turbulence / oscillate* operators, and sprite drawing.
+- **Atlas padding is trimmed**: a scene's main texture is often a power-of-two **atlas**
+  (2048²/4096²) where the artwork occupies just one band and the rest is pure black. The
+  static frame is cropped to the artwork itself (uniform black edges only; a crop leaving
+  too little is skipped), so the loading placeholder fills the screen instead of being
+  anchored to the atlas centre and showing mostly black.
 - **Cache**: results are cached at `~/.dsh-wallpaper-engine/cache/frames/`
   keyed by `<version>_<path>_<mtime>` (override with `DSH_WE_CACHE_DIR`);
   workshop updates and renderer upgrades invalidate the frame automatically.
@@ -106,7 +213,11 @@ a 「静态帧」 badge in the picker.
      - `GET /wallpaper-engine/inventory` → JSON list of wallpapers
      - `GET /wallpaper-engine/media/<token>` → video / HTML (Range supported)
      - `GET /wallpaper-engine/preview/<token>` → preview image
-     - `GET /wallpaper-engine/scene-frame/<token>` → scene full-scene frame (pure-JS renderer output 3840×2160, falls back to main-texture extraction, PNG disk-cached)
+     - `GET /wallpaper-engine/video-preview/<token>` → on-demand ffmpeg-extracted thumbnail for a custom MP4 upload (disk-cached)
+     - `GET /wallpaper-engine/scene-frame/<token>` → scene full-scene frame (pure-JS renderer output 3840×2160, falls back to main-texture extraction, PNG disk-cached; also the live renderer's underlay)
+     - `GET /wallpaper-engine/scene-live/*` → the vendored WebWallGL renderer page (built into `lib/webwallgl/`, loaded by the live-render iframe)
+     - `GET /wallpaper-engine/scene-files/<token>/<path>` → raw scene wallpaper files (`scene.pkg` / `project.json` …, Range supported; the renderer page parses the container itself). The same path is also mounted on the **separate wallpaper media origin** (see above); web-wallpaper payloads are fetched from there
+     - `GET /wallpaper-engine/media-origin` → reports the active wallpaper media origin (diagnostics: which origin a web wallpaper is loaded from)
      - `POST /wallpaper-engine/upload` → upload a custom wallpaper (JPG / PNG / MP4, raw bytes)
      - `POST /wallpaper-engine/remove` → remove an uploaded wallpaper
      - `POST /wallpaper-engine/upload-dir` → change the upload directory (persisted to `~/.dsh-wallpaper-engine/config.json`, migrates existing files)
@@ -245,6 +356,55 @@ plugin auto-loads (`dsh.client.immediately: true`).
 If your machine has Steam installed in a non-standard location, the host auto-detects
 via `libraryfolders.vdf`. Nothing further is required.
 
+### Troubleshooting install failures
+
+`dsh plugin --profile web add ...` forwards the command to **pnpm**. If you see this error:
+
+```text
+[ERR_PNPM_UNEXPECTED_VIRTUAL_STORE] Unexpected virtual store location
+dsh: pnpm failed in profile directory C:\Users\xxx\.dsh-desktop\profiles\web
+```
+
+**This is not a problem with the plugin itself** (any plugin would fail the same way) — the pnpm
+dependency state of that profile directory has gone stale. pnpm stores the virtual-store path
+(an absolute path) in `node_modules\.modules.yaml`; if the profile directory was **moved / copied /
+restored from a backup**, or the pnpm version / `virtual-store-dir` config changed, the recorded path
+no longer matches, so pnpm refuses to install anything into that profile.
+
+**Fix (Windows PowerShell):**
+
+```powershell
+# 1) Quit the DSH desktop app first
+# 2) Remove the profile's dependency directory (only node_modules — config / installed plugin names are kept)
+Remove-Item "$env:USERPROFILE\.dsh-desktop\profiles\web\node_modules" -Recurse -Force
+# 3) Reinstall this plugin
+dsh plugin --profile web add dsh-plugin-wallpaper-engine
+```
+
+> Deleting just `node_modules\.modules.yaml` also works (pnpm recreates it and continues); removing
+> the whole `node_modules` is more thorough. If `.dsh-desktop` is touched by OneDrive / cloud sync /
+> migration tools, add it to the sync exclusion list to avoid a recurrence.
+
+If you see this error instead:
+
+```text
+[ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED] ... The git-hosted package "dsh-plugin-wallpaper-engine@0.6.8"
+needs to execute build scripts but is not in the "allowBuilds" allowlist.
+```
+
+**You used a `github:` install form** (e.g. `dsh plugin --profile web add github:elysia395/dsh-wallpaper-engine`).
+pnpm 11 blocks build scripts of git-hosted packages by default for supply-chain safety, and this
+plugin's git checkout needs the `prepare` script to build the client — so `github:` direct installs
+always fail. Use the **npm package name** instead (the published npm package is pre-built, no
+compile-time build needed):
+
+```sh
+dsh plugin --profile web add dsh-plugin-wallpaper-engine
+```
+
+> If your plugin hub (dsh-plugin-hub) generated a `github:` command, upgrade it to **v1.4.1+** — the
+> new version auto-resolves the npm package name and switches to the npm channel.
+
 ## Usage
 
 1. Open `dsh web` → the DSH GUI.
@@ -254,13 +414,32 @@ via `libraryfolders.vdf`. Nothing further is required.
    The choice is remembered in your browser's `localStorage` (key
    `dsh-wallpaper-engine:selection`).
 
-![Settings UI overview](docs/images/features.png)
+![Settings UI overview](docs/images/settings-ui.gif)
 
-> The settings page: the liquid-glass card (外观 accent/transparency), the current-wallpaper card, plus the 自定义壁纸 / 轮播列表 / 壁纸效果 sections.
+> The settings page: the liquid-glass card with six tabs (壁纸 / 外观 / 字体 / 吉祥物 / 效果 / 高级).
 
-![Wallpaper picker modal](docs/images/wallpaper-library.png)
+![Wallpaper picker modal](docs/images/wallpaper-library.gif)
 
 > The picker modal: browse every wallpaper thumbnail, batch-hide, and restore from the hidden tab.
+
+### Six adjustment tabs
+
+The settings page and the wallpaper-repo drawer share the same **top category
+tabs** — every control is grouped into one of six domains, each tab showing only
+the 3–8 controls that belong there instead of a thirty-item single column:
+
+| Tab | Contents |
+|---|---|
+| **壁纸** (wallpaper, default) | current-wallpaper card (vinyl + picker + pause/close/refresh), auto-rotation, custom wallpapers |
+| **外观** (appearance) | accent, glass color, glass transparency, settings-window glass, sidebar glass & content surface |
+| **字体** (typography) | master switch + color / weight / family, input caret color |
+| **吉祥物** (mascot) | visibility switch, form cards (artwork doubles as a live preview), size slider |
+| **效果** (effects) | wallpaper blur / brightness / contrast / saturate / wallpaper opacity / scrim / border / glass, playback speed, fps cap, fit, flip, occlusion pause (an empty state guides you to pick a wallpaper first) |
+| **高级** (advanced) | compact layout, Edge compatibility |
+
+The pill indicator slides between tabs; the settings page and the drawer keep
+independent tab state (remembered in `localStorage`, never written to the config
+file). Long explanations moved into tooltips — each row keeps a one-line hint.
 
 ### Hide & restore (soft delete)
 
@@ -272,10 +451,14 @@ Above the thumbnail grid in the picker modal there are two dropdowns that
 reproduce Wallpaper Engine's own categorisation:
 
 - **内容分级** (content rating) — reads each wallpaper's `contentrating` field
-  from `project.json` (WE's workshop tags G / PG13 / R): **全部** (all) /
+  (WE wallpapers: `project.json`; custom uploads: `uploads/.meta.json`; the
+  field mirrors WE's workshop tags G / PG13 / R): **全部** (all) /
   **Everyone (G, default)** / **PG13** (parental guidance) / **Mature (R)** /
-  **未分级** (unrated — wallpapers without the field, typically local projects
-  or custom uploads).
+  **未分级** (unrated — wallpapers without the field, typically local projects).
+  An upload without a rating counts as **Everyone**
+  ([#84](https://github.com/elysia395/dsh-wallpaper-engine/issues/84): the
+  default filter would otherwise hide the user's own files entirely — absent
+  from the grid and impossible to select).
 - **类型** (type) — filters by the embeddable type: **全部** (all) / **视频**
   (video) / **网页** (web) / **图片** (image, custom uploads).
 
@@ -292,8 +475,8 @@ mirroring Wallpaper Engine's conservative first-run stance.
 
 ### Card style & vinyl record
 
-- **紧凑布局 (compact layout)**: a sliding toggle at the top of the settings
-  page. ON gives the **CD-rack** look — cards stack like CD jewel cases
+- **紧凑布局 (compact layout)**: a sliding toggle in the **高级** (advanced) tab.
+  ON gives the **CD-rack** look — cards stack like CD jewel cases
   (each row's top covers the row above, vertical only), hovering scales the
   card up and brings it to the front, the grid is tighter (~7 cards per row)
   and shows everything on ONE page with no pagination. OFF is the regular
@@ -305,21 +488,13 @@ mirroring Wallpaper Engine's conservative first-run stance.
   (animation is disabled under `prefers-reduced-motion`). A small record also
   sits in the picker modal head. The vinyl shows in **both** card styles.
 
-![Compact wallpaper library (CD-rack layout)](docs/images/compact-wallpaper-library.png)
-
-> Compact layout: the CD-rack stacked grid, hover scales the card to the front, everything on one page.
-
-![Rotating vinyl record](docs/images/vinyl-record.gif)
-
-> Vinyl record: the selected wallpaper's cover as the record label, spinning while playing, stopped on pause.
-
 ### Playback speed & horizontal flip
 
-With a video wallpaper selected, the **壁纸效果** area shows the **倍速** presets (0.5x / 0.75x / 1x / 1.25x / 1.5x / 2x) — driven by the browser's native `playbackRate`, instant, no reload or black flash (wallpaper videos are muted, so there is no audio to keep in sync). The **水平翻转** toggle mirrors the image via CSS `scaleX(-1)` — it works for video, web, and uploaded images/videos alike, with zero main-thread cost.
+With a video wallpaper selected, the **效果** (effects) tab shows the **倍速** presets (0.5x / 0.75x / 1x / 1.25x / 1.5x / 2x) — driven by the browser's native `playbackRate`, instant, no reload or black flash (wallpaper videos are muted, so there is no audio to keep in sync). The **水平翻转** toggle mirrors the image via CSS `scaleX(-1)` — it works for video, web, and uploaded images/videos alike, with zero main-thread cost.
 
 ### Occlusion pause (battery-saving trio)
 
-Like Wallpaper Engine's "pause when covered" — the main reason desktop WE is ~0 GPU most of the time. Browsers cannot detect window occlusion directly, so the plugin uses the three closest signals (toggles in the **壁纸效果** area, instant + persisted):
+Like Wallpaper Engine's "pause when covered" — the main reason desktop WE is ~0 GPU most of the time. Browsers cannot detect window occlusion directly, so the plugin uses the three closest signals (toggles in the **效果** tab, instant + persisted):
 
 | Toggle | Default | Behavior |
 |---|---|---|
@@ -348,25 +523,48 @@ High-fps sources (e.g. 4K120 H.264) dominate GPU decode (~60% Video Decode at 1.
 
 > Transcoding uses **NVENC** (`av1_nvenc`, falling back to `h264_nvenc`) and requires an NVIDIA GPU + driver; without one the feature auto-disables (or falls back to slow software H.264). No ffmpeg or a failed transcode simply disables the feature — no side effects.
 
+### Wallpaper properties (live author-property editing)
+
+When the current wallpaper is a **scene** or **web** wallpaper, the 「当前壁纸」 card shows a
+green **壁纸属性** button next to 「选择壁纸」. It opens the adjustable properties the author
+defined in the WE editor (color / bool / slider / combo / text / file); applying one takes
+effect **immediately** (`__wp.updateWebProps`) — no re-mount needed.
+
+- Definitions come from the wallpaper's `project.json` → `general.properties`, labels from its
+  own `general.localization` (per-key fallback zh-chs → zh-cht → en-us); properties carrying a
+  `condition` show/hide by the current values, and `editable: false` internals are hidden from
+  the panel while still being sent to the wallpaper (WE semantics).
+- Edits are **remembered** per wallpaper: after a reload/restart a web wallpaper receives them
+  with its HTML seed, a scene wallpaper gets them replayed once live rendering is ready.
+  「恢复默认」 clears every edit for that wallpaper.
+- The panel shows the values **actually in effect** (read back from the renderer, since a
+  scene's defaults live in its own snapshot), not just the project.json defaults.
+- If live rendering is not active (static frame / compat mode) the panel says so; edits apply
+  once live rendering takes over.
+
 ### Custom wallpapers
 
 The **自定义壁纸** section uploads local images (JPG / PNG) or videos (MP4) as wallpapers:
 
 - **Storage location**: files default to `~/.dsh-wallpaper-engine/uploads` (your home directory — usually the C: drive). Click **更改** to move storage to any drive (absolute path, `~` supported); existing files migrate automatically and the choice persists across restarts — recommended for users who don't want wallpaper data on the system drive.
-- **Format limit**: JPG / PNG / MP4 only; validated twice (browser + host) with a clear error message.
+- **WE project directories** are recognized in the same location: any subfolder with a `project.json` (shipping `scene.pkg` / `scene.json` / `index.html` / `*.mp4`) becomes a wallpaper of the matching type — scene wallpapers render live. Folders are scanned in chunks (~30 ms for hundreds), are read-only (never listed under upload management, never removable), and loose `preview.jpg/png/gif` files are used as thumbnails.
+- **Format limit** for direct uploads: JPG / PNG / MP4 only; validated twice (browser + host) with a clear error message.
+- **Video thumbnails**: uploaded MP4s get an on-demand ffmpeg-extracted thumbnail in the picker (the first second is skipped to avoid black fade-ins), cached under `~/.dsh-wallpaper-engine/cache/video-previews/`; without ffmpeg the card keeps the "no preview" placeholder and playback is unaffected.
 - **Fit modes**: 覆盖 (cover) / 填充 (contain) / 居中 (center) / 拉伸 (fill) — applied to custom wallpapers only (WE wallpapers keep their intended cover framing).
 - **Management**: each upload can be **移除** (confirm dialog, deletes the local file); uploaded wallpapers also support hide/restore, playback speed, and flip.
 - **Deduplication**: re-uploading an identical file is detected by content (SHA-256) and returns the existing entry — no duplicate copies pile up in the library.
 
 ### Automatic rotation (轮播列表)
 
-Rotation runs over **user-defined carousel lists** (轮播列表). Create any number of lists with **新建**, pick Video/Web wallpapers into each from the inventory, give each list its own switch interval (1, 5, 10, 30, 60 or 120 minutes) and order (顺序/随机), then enable **自动轮转** on the list you want active. Lists are persisted in your browser's `localStorage` and are fully client-side — rotation never depends on Wallpaper Engine's own `config.json` playlist paths.
+Rotation runs over **user-defined carousel lists** (the 自动轮播 group in the **壁纸** tab). Create any number of lists with **新建**, pick Video/Web wallpapers into each from the inventory, give each list its own switch interval (1, 5, 10, 30, 60 or 120 minutes) and order (顺序/随机), then enable **自动轮转** on the list you want active. Lists are persisted in your browser's `localStorage` and are fully client-side — rotation never depends on Wallpaper Engine's own `config.json` playlist paths.
 
 At least two playable Video/Web wallpapers per list are required; manual changes reset the next timer; each list keeps its own cadence, so you can have one list switching every 5 minutes and another every 30. On first run, the first playable Wallpaper Engine playlist is imported automatically as a list so the feature works out of the box; **从 WE 播放列表导入** inside the editor imports any other playlist into the list being edited. Application wallpapers cannot be embedded in the web UI, so they are automatically excluded from rotation and hidden from the picker.
 
+Rotation switches only when the next wallpaper is **fully ready**: at switch time the next candidate is prepared in the background (live renderer first frame / static-frame extraction / video canplay / image decode) while the current wallpaper keeps playing; the commit then cross-fades old and new layers over 1.2s, so the new layer is alive on arrival with no black flash. A candidate that fails to prepare (e.g. a 404 video) is skipped in a bounded chain to the next one. For development/smoke testing, `localStorage.weRotationTestSec` (seconds) temporarily shortens the rotation interval.
+
 ### Liquid-glass appearance (whole settings window + accent + transparency)
 
-The **外观** (appearance) area at the top of the settings page controls the look
+The **外观** (appearance) tab controls the look
 of the **entire native DSH settings window** (following the dsh-web-ui-all
 skin-center design):
 
@@ -391,13 +589,9 @@ skin-center design):
 > back to a high-opacity solid so text stays readable. All controls apply
 > instantly and persist in `localStorage`.
 
-![Liquid-glass settings window](docs/images/liquid-glass-window.png)
-
-> Liquid glass: the whole settings window unified as glass, following accent, glass color and glass transparency.
-
 ### Mascot (chat pull-cord)
 
-At the bottom of the **外观** (appearance) area is a mascot control group for the chat **pull-cord** (a draggable rope pinned to the top edge; pulling it down slides out the **wallpaper repo** drawer):
+The **吉祥物** (mascot) tab controls the chat **pull-cord** (a draggable rope pinned to the top edge; pulling it down slides out the **wallpaper repo** drawer). The **form** picker renders as cards — each card draws the actual artwork scaled by the current **吉祥物大小** slider, so choosing a form and judging its size happen in one place:
 
 | Control | What it does | Range | Default |
 |---|---|---|---|
@@ -407,9 +601,13 @@ At the bottom of the **外观** (appearance) area is a mascot control group for 
 
 > Both artworks are inlined as base64 (transparent background) at build time, so the single-file client bundle stays self-contained. **Size** changes only the rope's own box; the wallpaper-repo drawer below is unaffected. Settings apply instantly and persist to the host-side config file.
 
+![Mascot quick-adjustment drawer](docs/images/mascot-drawer.png)
+
+> Pull the top rope mascot to slide out the **wallpaper repo** drawer: six-tab quick adjustments with the vinyl card, rotation and custom-wallpaper management within reach.
+
 ### Custom typography
 
-The settings page has a dedicated **字体** (typography) section placed before **外观**. The **master switch defaults to off** — the UI keeps the stock dsh typography with zero injected styling; turn it on to apply the three knobs below. Every change applies instantly and persists:
+The **字体** (typography) tab holds the dedicated typography section. The **master switch defaults to off** — the UI keeps the stock dsh typography with zero injected styling; turn it on to apply the three knobs below. Every change applies instantly and persists (the adjustment panel's own labels always stay in theme ink — they are deliberately excluded from the 字体颜色 tint to keep the panel readable):
 
 | Control | What it does | Range / options | Default |
 |---|---|---|---|
@@ -420,9 +618,27 @@ The settings page has a dedicated **字体** (typography) section placed before 
 
 > Each **字体** chip renders in its own font (WYSIWYG preview); 行楷 maps to `STXingkai` (falls back to KaiTi when not installed, `Xingkai SC` on macOS). Error / danger / warning elements keep their system red color — global tinting never overrides them.
 
-### The seven sliders
+### Input caret color
 
-While a wallpaper is active, seven sliders let you tune how it blends with the UI:
+The text caret takes its color from the dsh theme, while the wallpaper shows
+straight through the liquid-glass composer behind it — when the two colors are
+close, the caret becomes invisible ([#83](https://github.com/elysia395/dsh-wallpaper-engine/issues/83)).
+The **输入光标** section on the typography tab gives the caret its own color control:
+
+| Option | What it does |
+|---|---|
+| **自动** (auto) | Injects nothing — the caret keeps the native dsh behavior (default) |
+| **6 preset colors** | white / black / classic blue / ice cyan / rose pink / coral red — black & white give the strongest contrast on light / dark wallpapers |
+| **Custom picker** | any color |
+
+Once picked, the color is applied via `caret-color` to **every** text input
+(inputs, textareas, editable areas), instantly and persistently; it is
+independent of the **字体自定义** master switch — you do not need to turn on
+global font tinting just to make the caret visible.
+
+### The eight sliders
+
+The **效果** (effects) tab — available while a wallpaper is active — offers eight sliders to tune how it blends with the UI:
 
 | Slider | What it controls | Range | Default |
 |---|---|---|---|
@@ -430,17 +646,19 @@ While a wallpaper is active, seven sliders let you tune how it blends with the U
 | **亮度** (brightness) | Wallpaper brightness (media filter) | 40–160 % | 100 % |
 | **对比度** (contrast) | Wallpaper contrast (media filter) | 40–200 % | 100 % |
 | **饱和度** (saturate) | Wallpaper saturation (media filter) | 0–200 % | 100 % |
+| **壁纸透明度** (wallpaper opacity) | Transparency of the whole wallpaper layer (higher = more transparent): fading it out blends the wallpaper into the page base colour — the IDEA background-image style of "visible but not overpowering". Complements **暗化** (scrim): one fades the wallpaper itself, the other darkens the whole picture; for the blend-into-base look, combine higher opacity with a lower scrim | 0–90 % | 0 % |
 | **暗化** (scrim) | Darkens the overlay between wallpaper and text | 0–90 % | 25 % |
 | **边框** (border) | Raises border/divider contrast | 0–90 % | 35 % |
-| **玻璃** (glass) | Blur radius of the frosted-glass panels (composer, bubbles) | 0–60 px | 24 |
+| **玻璃** (glass) | Blur radius of the frosted-glass panels (composer, bubbles) | 0–60 px | 16 |
 
 > **Light vs. dark mode** — Wallpapers differ wildly in colour and brightness, so
 > there is no one mode that fits every wallpaper. Switch DSH's theme between
 > **light** and **dark** to find which suits the current wallpaper. If text or
 > hairlines become hard to read on a bright or busy wallpaper, raise the
 > **暗化 / 边框** sliders, or use **亮度** to tame an overly bright wallpaper
-> (and optionally add a little **壁纸模糊**) until it is comfortable. All seven
-> sliders apply instantly — no page refresh needed.
+> (and optionally add a little **壁纸模糊**) until it is comfortable; if the
+> wallpaper is too loud instead, raise **壁纸透明度** to let it recede into the
+> base colour. All eight sliders apply instantly — no page refresh needed.
 
 ## Configuration
 
@@ -458,6 +676,14 @@ files** (in the directory you chose) and `~/.dsh-wallpaper-engine/config.json`
 | `DSH_WE_FFMPEG_URL` | replaces the auto-download source (self-hosted mirror / proxy) |
 | `DSH_WE_CACHE_DIR` | overrides the cache root (transcode cache / scene-frame cache) |
 | `DSH_WE_STEAM_ROOT` | explicit Steam root(s) (comma/semicolon separated, Windows or /mnt paths; fallback when registry/auto-detection misses) |
+| `DSH_WE_MEDIA_BRIDGE` | explicit media-middleware executable (dev/self-built artifact; highest priority) |
+| `DSH_WE_MEDIA_BRIDGE_URL` | replaces the middleware download source (`{tag}` / `{asset}` placeholders supported) |
+| `DSH_WE_MEDIA_BRIDGE_TAG` / `DSH_WE_MEDIA_BRIDGE_SHA256` | use another middleware version (an unpinned tag is refused unless you supply its sha256) |
+| `DSH_WE_MEDIA_LEGACY` | `=1` forces the built-in implementation (for A/B debugging) |
+| `DSH_WE_MEDIA_NO_AUDIO` | `=1` metadata only — never touches system audio capture (no permission prompt) |
+| `DSH_WE_MEDIA_PROVIDER` | `=mock` runs the middleware's built-in fake player (no real player needed) |
+| `DSH_WE_MEDIA_IDLE_MS` | idle ms before the middleware child is stopped (`0` = never; default 15 min) |
+| `DSH_WE_MEDIA_DEBUG` | `=1` logs the middleware's stderr and spawn arguments |
 
 ## dsh-better-sidebar compatibility
 
@@ -466,9 +692,12 @@ The liquid-glass effect is specifically adapted for dsh-better-sidebar's panels
 the conversation area share the same wallpaper + scrim background and read as one
 continuous surface.
 
-The **外观** section exposes a set of **sidebar glass** controls independent of the
-conversation glass (they target only the dsh-better-sidebar subtree; browsers
-without `backdrop-filter` fall back to a near-opaque fill):
+The **外观** tab exposes a set of **sidebar glass** controls independent of
+both the conversation glass and the active wallpaper. Even with no Wallpaper
+Engine wallpaper selected, the sidebar can be tinted and frosted over the stock
+DSH surface or another background source. These controls target only the
+dsh-better-sidebar subtree; browsers without `backdrop-filter` fall back to a
+near-opaque fill:
 
 | Control | What it controls | Range | Default |
 |---|---|---|---|
@@ -479,12 +708,15 @@ without `backdrop-filter` fall back to a near-opaque fill):
 
 > Sidebar glass is a separate set of knobs from the settings-window glass: the
 > conversation「玻璃」slider only drives the composer/bubbles, while the sidebar
-> sliders drive the sidebar. The sidebar defaults to a fairly clear glass (so it
-> matches the wallpaper instead of glowing white); editor/terminal content
-> surfaces have their own near-opaque fill + transparency controls to keep text
-> readable in the narrow panels.
+> sliders drive the sidebar. Turning **侧栏液态玻璃** off restores the native
+> sidebar, including its editor/terminal content surfaces. The sidebar defaults
+> to a fairly clear glass (so it matches the background instead of glowing
+> white); editor/terminal content surfaces have their own near-opaque fill +
+> transparency controls to keep text readable in the narrow panels.
 
-![dsh-better-sidebar compatibility](docs/images/better-sidebar.png)
+![dsh-better-sidebar compatibility & custom typography](docs/images/better-sidebar-font.png)
+
+> The sidebar glass adaptation with the custom typography (行楷) applied at the same time.
 
 ## Limitations
 
@@ -502,7 +734,10 @@ without `backdrop-filter` fall back to a near-opaque fill):
   `h264_nvenc` fallback): without ffmpeg (including unavailable auto-download,
   e.g. musl/Alpine or other uncovered platforms) or an NVIDIA GPU, the fps cap
   auto-disables and wallpapers keep playing the original — nothing else is affected.
-- **Occlusion pause applies to video wallpapers only**: web (iframe) wallpapers
+- **Occlusion pause applies to video wallpapers and scene live render**: videos
+  pause their decoder directly; the scene live render pauses its render loop
+  through the control surface (GPU usage drops with it). Plain web (iframe)
+  wallpapers
   cannot be paused from outside and are only throttled by the browser when hidden.
 - The picker is English/Chinese mixed (this bundle is not yet wired into DSH's
   locale namespaces).
@@ -519,9 +754,22 @@ consumes (the same shape `tsdown` emits for in-box client packages).
 
 ```sh
 npm run build                  # regenerate lib/client.js from src/client.js
-npm run verify                 # materialize the emitted bundle and assert its exports
-node scripts/verify-scene.mjs  # scene static-frame extraction / scene-frame route self-test (incl. synthetic fixtures)
+npm run verify                 # materialize the emitted bundle and assert its exports (incl. the scene-live pipeline self-test)
+node scripts/verify-scene.mjs  # scene static-frame extraction / scene-frame route self-test (incl. synthetic fixtures, offline)
+node scripts/verify-scene-live.mjs  # scene live-render self-test (vendor artifacts / scene-live + scene-files routes / directory fence / Range / media origin)
+node scripts/e2e-web-media-origin.mjs  # real-browser end-to-end (needs a local Chromium): media origin + strict-sandbox iframe + shim / property seed / control channel
+node scripts/diagnose-web-blank.mjs  # triage one blank web wallpaper (headless real browser + screenshot + console errors; WALL_ID=<dir name>)
+node scripts/sync-webwallgl.mjs     # build the renderer page from a local webwallgl checkout and vendor it into lib/webwallgl/
 ```
+
+`lib/webwallgl/` is a **vendored build artifact** of the upstream renderer page
+(`index.html` + hashed assets + `.upstream.json` provenance), written
+overwriting-style by `scripts/sync-webwallgl.mjs` (built with
+`--base=/wallpaper-engine/scene-live/`). Make changes upstream, never by hand in
+that directory. The renderer page depends only on the host's `/scene-live` and
+`/scene-files` same-origin routes and is driven by the client through
+`frame.contentWindow.__wp` (same-origin iframe), so both halves evolve
+independently.
 
 Edit `src/client.js`, then `npm run build`. Do not hand-edit `lib/client.js`.
 `npm install`/`pnpm install` runs `prepare` → `build` automatically, so a

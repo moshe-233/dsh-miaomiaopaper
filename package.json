@@ -1,10 +1,43 @@
 {
   "name": "@moshe233/dsh-miaomiaopaper",
-  "version": "0.6.11-miao",
+  "version": "1.0.1-miao",
   "description": "dsh-miaomiaopaper: 喵喵壁纸管理器 - Wallpaper Engine backgrounds & liquid glass for DSH web GUI (Forked and customized from elysia395/dsh-wallpaper-engine)",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
+  "files": [
+    "lib/",
+    "cordis.patch.yml",
+    "README.md",
+    "README.en.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime"
+      ]
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/moshe-233/dsh-miaomiaopaper.git"
@@ -18,44 +51,10 @@
     "theme",
     "background"
   ],
-  "publishConfig": {
-    "access": "public"
-  },
-  "exports": {
-    ".": {
-      "types": "./lib/types/index.d.ts",
-      "default": "./lib/index.js"
-    },
-    "./client": {
-      "types": "./lib/types/client.d.ts",
-      "default": "./lib/client.js"
-    },
-    "./cordis.patch.yml": "./cordis.patch.yml",
-    "./package.json": "./package.json"
-  },
-  "files": [
-    "lib/",
-    "cordis.patch.yml",
-    "README.md",
-    "README.en.md"
-  ],
-  "dsh": {
-    "bundle": {
-      "patch": "./cordis.patch.yml"
-    },
-    "client": {
-      "inject": [
-        "@deepseek-ai/dsh-client-runtime"
-      ],
-      "platform": "web",
-      "immediately": true
-    }
-  },
   "license": "MIT",
-  "scripts": {
-    "build": "node scripts/build-client.mjs",
-    "verify": "node scripts/verify-client.mjs && node scripts/verify-transcode-state.mjs",
-    "prepare": "node scripts/prepare.mjs"
+  "dependencies": {
+    "@shaderfrog/glsl-parser": "^7.0.1",
+    "jpeg-js": "^0.4.4"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
@@ -69,8 +68,13 @@
       "optional": true
     }
   },
-  "dependencies": {
-    "jpeg-js": "^0.4.4",
-    "@shaderfrog/glsl-parser": "^7.0.1"
+  "scripts": {
+    "build": "node scripts/build-client.mjs",
+    "prepare": "node scripts/prepare.mjs",
+    "smoke": "node test/rotation-smoke.mjs && node test/rotation-live-smoke.mjs && node test/rotation-prepared-leak-smoke.mjs && node test/live-frame-backfill-smoke.mjs && node test/live-frame-async-identity-smoke.mjs",
+    "verify": "node scripts/verify-client.mjs && node scripts/verify-transcode-state.mjs && node scripts/verify-playback-controls.mjs && node scripts/verify-scene.mjs && node scripts/verify-scene-live.mjs && node scripts/verify-media-bridge.mjs",
+    "verify:all": "npm run build && npm run verify && npm run smoke",
+    "verify:bridge": "node scripts/verify-media-bridge.mjs --provision",
+    "verify:e2e": "node scripts/e2e-web-media-origin.mjs"
   }
 }
