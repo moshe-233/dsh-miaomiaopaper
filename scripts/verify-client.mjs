@@ -833,12 +833,20 @@ setTimeout(async () => {
     assert.ok(!!fab, 'FAB orb must be mounted for an active wallpaper with fabEnabled');
     if (fab) {
       const trigger = fab.children.find((c) => typeof c.className === 'string' && c.className.includes('we-fab__trigger'));
+      // ── [local-patch] Capsule-tap regression: tapping the trigger opens the
+      // panel by MOUNTING it in place. The trigger node (and its disc) must
+      // survive — the reported bug rebuilt the whole orb here, so the capsule
+      // you just pressed was destroyed and you saw a flash.
       let openError = null;
       try { trigger && trigger.onclick && trigger.onclick({ stopPropagation() {} }); } catch (e) { openError = e && e.message; }
       console.log('FAB toggle threw:', openError || '(none)');
       assert.equal(openError, null, 'opening the FAB menu must not throw');
-      // syncFloatingOrb re-rendered the orb: the expanded menu must exist.
       const fabAfter = document.getElementById('dsh-wallpaper-engine-fab');
+      const triggerAfterOpen = fabAfter.children.find((c) => typeof c.className === 'string' && c.className.includes('we-fab__trigger'));
+      assert.equal(triggerAfterOpen, trigger,
+        'the capsule must survive its own tap — a new node means the orb was rebuilt (the flash)');
+      assert.ok(String(triggerAfterOpen.className).includes('we-fab__trigger--active'),
+        'the capsule must pick up the --active class in place');
       const findClass = (node, needle, hits) => {
         if (!node || typeof node !== 'object') return;
         if (typeof node.className === 'string' && node.className.includes(needle)) hits.push(node);
@@ -946,30 +954,37 @@ setTimeout(async () => {
       assert.ok(String(muteBtnNow.className).includes('we-fab__btn--active'),
         'the muted button must carry the --active class');
 
-      // ── [local-patch] collapse list: toggle button flips the list to the
-      // --collapsed class and clicking again restores it.
+      // ── [local-patch] collapse (下拉) regression: the chevron flips the list
+      // to --collapsed IN PLACE. This was the second reported flash: collapse
+      // state used to sit in the structure fingerprint, so pressing the chevron
+      // rebuilt the entire orb. Assert the very nodes survive.
       const collapseBtns = []; findClass(fabAfterPlay, 'we-fab__collapse-btn', collapseBtns);
       console.log('collapse button present:', collapseBtns.length > 0);
       assert.ok(collapseBtns.length > 0, 'the list collapse toggle must render');
+      const collapseBtn = collapseBtns[0];
+      const listsBefore = []; findClass(fabAfterPlay, 'we-fab__list', listsBefore);
+      const listBefore = listsBefore.find((l) => String(l.className).split(/\s+/).includes('we-fab__list'));
+      assert.ok(listBefore, 'the wallpaper list must be mounted before collapsing');
       let collapseError = null;
-      try { collapseBtns[0].onclick({ stopPropagation() {} }); } catch (e) { collapseError = e && e.message; }
+      try { collapseBtn.onclick({ stopPropagation() {} }); } catch (e) { collapseError = e && e.message; }
       console.log('collapse toggle threw:', collapseError || '(none)');
       assert.equal(collapseError, null, 'the collapse toggle must not throw');
       const listAfter = document.getElementById('dsh-wallpaper-engine-fab');
-      let collapsedNow = false;
-      if (listAfter) {
-        const lists = []; findClass(listAfter, 'we-fab__list', lists);
-        collapsedNow = lists.some((l) => typeof l.className === 'string' && l.className.includes('--collapsed'));
-      }
+      const listsNow = []; findClass(listAfter, 'we-fab__list', listsNow);
+      const listNow = listsNow.find((l) => String(l.className).split(/\s+/).includes('we-fab__list'));
+      const collapsedNow = !!listNow && String(listNow.className).includes('--collapsed');
       console.log('list collapsed after toggle:', collapsedNow);
       assert.equal(collapsedNow, true, 'the collapse toggle must add --collapsed to the list');
-      // Collapsing changes the STRUCTURE fingerprint → that one legitimately
-      // rebuilds (the list really is hidden now), and it must stay collapsed.
-      // (Token match, not substring: 'we-fab__list' is also a prefix of the
-      // row/label/dot class names.)
-      const collapsedLists = []; findClass(listAfter, 'we-fab__list', collapsedLists);
-      assert.ok(collapsedLists.some((l) => String(l.className).split(/\s+/).includes('we-fab__list--collapsed')),
-        'the rebuilt list must still be there in collapsed form');
+      assert.equal(listNow, listBefore,
+        'the list node must survive the chevron press — a new node means a rebuild (the flash)');
+      const collapseBtnsNow = []; findClass(listAfter, 'we-fab__collapse-btn', collapseBtnsNow);
+      assert.equal(collapseBtnsNow[0], collapseBtn,
+        'the chevron node must survive its own press — a new node means a rebuild');
+      assert.ok(String(collapseBtn.className).includes('we-fab__collapse-btn--collapsed'),
+        'the chevron must pick up its collapsed class in place');
+      const triggerAfterCollapse = listAfter.children.find((c) => typeof c.className === 'string' && c.className.includes('we-fab__trigger'));
+      assert.equal(triggerAfterCollapse, trigger,
+        'the capsule must survive the chevron press too');
     }
   }
   console.log('effects ran:', effects.length);
