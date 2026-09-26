@@ -73,6 +73,30 @@ function setInventoryState(state) {
 // [local-patch] remember whether the wallpaper list is collapsed; toggled by
 // the small chevron in the FAB menu header and reset on re-render.
 let fabListCollapsed = false;
+// [local-patch] structure fingerprint of the last fully built orb: when a sync
+// arrives with the same structure (no open/close, no list/collapse/type/group
+// change), syncFloatingOrb reuses the live DOM and updates it in place instead
+// of wiping innerHTML — background emits (transcode polls, media-info
+// backfills, audio probes) must never rebuild the orb mid-interaction, or the
+// spinning disc restarts, the title marquee jumps and a dragged slider dies.
+let lastFabOrbStructureKey = null;
+function fabOrbStructureKey() {
+  const candidates = rotationCandidates();
+  const group = activeRotationGroup();
+  const ids = Array.isArray(candidates) ? candidates.map((w) => w && w.id).join(",") : "";
+  const groupKey = group
+    ? group.id + "|" + (group.videoOnly ? "v" : "-") + "|" + (group.order || "")
+    : "-";
+  return [
+    selection.fabEnabled ? "1" : "0",
+    selection.fabMenuOpen ? "1" : "0",
+    fabListCollapsed ? "1" : "0",
+    selection.type === "video" ? "1" : "0",
+    selection.rotationEnabled ? "1" : "0",
+    groupKey,
+    ids,
+  ].join("~");
+}
 
 // ── Defaults ─────────────────────────────────────────────────────────────────
 // scrim default is intentionally LOW now: iOS liquid glass needs the wallpaper
@@ -4898,6 +4922,7 @@ function syncFloatingOrb() {
     teardownFabOutsideDismiss();
     teardownFabHotkeys();
     teardownFabDrag();
+    lastFabOrbStructureKey = null;
     return;
   }
 
@@ -4906,6 +4931,11 @@ function syncFloatingOrb() {
     orb = document.createElement("div");
     orb.id = FAB_ID;
     document.body.appendChild(orb);
+    // [local-patch] pointer wiring (drag / click-eat / dragstart) binds to the
+    // PERSISTENT container once, at creation. renderOrbContent() only swaps
+    // children — the container survives, so rebinding here would stack
+    // duplicate listeners on every rebuild.
+    setupFabDrag(orb);
   }
 
   // [local-patch] Global hotkeys (Alt+←/→/↓) live for the lifetime of the
@@ -4917,11 +4947,6 @@ function syncFloatingOrb() {
   // clicking the trigger again still works as a toggle. The listeners live
   // for the lifetime of the orb and are cleaned up when it is removed.
   setupFabOutsideDismiss(orb);
-
-  // [local-patch] Right-rail drag: press-and-move the disc to slide the ball
-  // along the RIGHT border; release settles at that height. Position persists
-  // across reloads via selection.fabSnapY.
-  setupFabDrag(orb);
 
   const cls = ["we-fab"];
   if (selection.fabSnapY != null) {
@@ -4938,8 +4963,16 @@ function syncFloatingOrb() {
     orb.style.bottom = "";
   }
 
-  // Render FAB inner elements
-  renderOrbContent(orb);
+  // Render FAB inner elements. Same structure as the live orb →
+  // in-place state update only: keeps the spinning disc, the title marquee
+  // and any slider being dragged alive through background emits.
+  const structureKey = fabOrbStructureKey();
+  if (existing && structureKey === lastFabOrbStructureKey) {
+    refreshFloatingOrbState();
+  } else {
+    renderOrbContent(orb);
+    lastFabOrbStructureKey = structureKey;
+  }
 
   // [local-patch] Dock LAST, once the content exists: the rail pose derives
   // from the panel's REAL rendered height, synchronously. No animations, no
@@ -4999,6 +5032,11 @@ function setupFabOutsideDismiss(orb) {
 function teardownFabOutsideDismiss() {
   if (fabDismissCleanup) fabDismissCleanup();
 }
+// [local-patch] the orb's POINTER listeners bind to the persistent container,
+// so they must NOT be reset on rebuild (resetting would double-bind + leak,
+// and teardown would unbind a stale closure while the duplicate keeps firing).
+// The container is only ever created once and removed when the orb is disabled,
+// so setup-once/teardown-on-remove is already the correct lifecycle.
 
 // [local-patch] Free drag for the floating orb ─────────────────────────────
 // Press-and-move the disc to drop the ball anywhere along/in the borders:
@@ -5405,6 +5443,14 @@ function mountUiCollectors() {
 }
 function teardownUiCollectors() { if (uiCollectorsCleanup) uiCollectorsCleanup(); }
 
+// [local-patch] Shared FAB icon markup: the build path and the in-place
+// refresh path must emit byte-identical SVG or a state change would flip the
+// glyph back and forth between the two writers.
+const FAB_PLAY_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+const FAB_PAUSE_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>';
+const FAB_MUTE_ICON_MUTED = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>';
+const FAB_MUTE_ICON_ON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>';
+
 function refreshFloatingOrbState() {
   const orb = document.getElementById(FAB_ID);
   if (!orb) return;
@@ -5464,16 +5510,47 @@ function refreshFloatingOrbState() {
   const canStep = candidates.length >= 2 || Boolean(group && group.videoOnly && candidates.length >= 1);
   if (prev) prev.disabled = !canStep;
   if (next) next.disabled = !canStep;
+  // [local-patch] the menu list rows are stable nodes now: move the highlight
+  // and refresh labels here so selection switches stay in-place too.
+  const rows = typeof orb.querySelectorAll === "function"
+    ? orb.querySelectorAll(".we-fab__list-row") : [];
+  for (const row of rows) {
+    const rowId = row.dataset && row.dataset.weFabItemId;
+    const active = rowId != null && String(rowId) === String(selection.id);
+    const base = "we-fab__list-row" + (active ? " we-fab__list-row--active" : "");
+    if (row.className !== base) row.className = base;
+    const item = (candidates || []).find((w) => String(w.id) === String(rowId));
+    if (item) {
+      const label = typeof row.querySelector === "function"
+        ? row.querySelector(".we-fab__list-label") : null;
+      const text = item.title || item.id;
+      if (label && label.textContent !== text) label.textContent = text;
+      const wantTitle = item.title || item.id;
+      if (row.title !== wantTitle) row.title = wantTitle;
+    }
+  }
   if (play) {
     play.title = isPlaying ? "暂停 (Alt+↓)" : "播放 (Alt+↓)";
-    play.innerHTML = isPlaying
-      ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>'
-      : '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+    // Same short-token guard as the mute icon: only rewrite when the glyph
+    // actually changes, so a background emit never re-serialises the SVG.
+    const playState = isPlaying ? "pause" : "play";
+    if (play.dataset.weFabPlayIcon !== playState) {
+      play.dataset.weFabPlayIcon = playState;
+      play.innerHTML = isPlaying ? FAB_PAUSE_ICON : FAB_PLAY_ICON;
+    }
   }
   const fabMuted = selection.videoAudioEnabled === false;
   if (mute) {
     mute.className = "we-fab__btn" + (fabMuted ? " we-fab__btn--active" : "");
     mute.title = fabMuted ? "取消静音" : "静音";
+    // [local-patch] the icon must follow the state in place too: only a full
+    // rebuild used to swap the speaker glyph, so toggling mute via the in-place
+    // path would have left the stale icon behind (the token guards the rewrite).
+    const muteState = fabMuted ? "muted" : "on";
+    if (mute.dataset.weFabMuteIcon !== muteState) {
+      mute.dataset.weFabMuteIcon = muteState;
+      mute.innerHTML = fabMuted ? FAB_MUTE_ICON_MUTED : FAB_MUTE_ICON_ON;
+    }
   }
   if (slider) slider.value = String(Math.round((Number(selection.videoVolume) || 0) * 100));
   if (volumeIcon) volumeIcon.textContent = weAudioVolume() <= 0 ? "🔇" : "🔊";
@@ -5544,6 +5621,9 @@ function renderOrbContent(container) {
     for (const item of candidates) {
       const row = document.createElement("button");
       row.className = "we-fab__list-row" + (item.id === selection.id ? " we-fab__list-row--active" : "");
+      // [local-patch] stable per-item id so the in-place refresh path can
+      // re-target highlight/labels without rebuilding the menu.
+      row.dataset.weFabItemId = String(item.id);
       row.type = "button";
       row.title = item.title || item.id;
       const label = document.createElement("span");
@@ -5613,9 +5693,8 @@ function renderOrbContent(container) {
     playBtn.dataset.weFabPlay = "";
     playBtn.type = "button";
     playBtn.title = isPlaying ? "暂停 (Alt+↓)" : "播放 (Alt+↓)";
-    playBtn.innerHTML = isPlaying
-      ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>'
-      : '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+    playBtn.dataset.weFabPlayIcon = isPlaying ? "pause" : "play";
+    playBtn.innerHTML = isPlaying ? FAB_PAUSE_ICON : FAB_PLAY_ICON;
     playBtn.onclick = (e) => {
       e.stopPropagation();
       selection.playing = !selection.playing;
@@ -5662,9 +5741,8 @@ function renderOrbContent(container) {
       muteBtn.dataset.weFabMute = "";
       muteBtn.type = "button";
       muteBtn.title = fabMutedNow ? "取消静音" : "静音";
-      muteBtn.innerHTML = fabMutedNow
-        ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>'
-        : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>';
+      muteBtn.dataset.weFabMuteIcon = fabMutedNow ? "muted" : "on";
+      muteBtn.innerHTML = fabMutedNow ? FAB_MUTE_ICON_MUTED : FAB_MUTE_ICON_ON;
       muteBtn.onclick = (e) => {
         e.stopPropagation();
         const enabling = selection.videoAudioEnabled === false;

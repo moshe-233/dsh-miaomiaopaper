@@ -31,6 +31,39 @@ const animProbeSrcs = [];
 // （层内视频的 _parent 是 LAYER_ID 那个层节点）。
 const animVideoEls = [];
 const imgEls = [];
+// [local-patch] tiny selector matcher for the mock DOM: enough for the FAB
+// in-place refresh path (class selectors + [data-*] attribute selectors,
+// comma lists) so querySelector(All) finds real nodes instead of nulls.
+function matchesMockSelector(node, sel) {
+  const cls = typeof node.className === 'string' ? node.className.split(/\s+/).filter(Boolean) : [];
+  const attrs = node.attributes || {};
+  const data = node.dataset || {};
+  for (const part of String(sel || '').split(',')) {
+    const s = part.trim();
+    if (!s) continue;
+    // Two shapes the FAB code actually uses: ".cls" / ".cls[attr]" and the
+    // bare attribute form "[data-we-fab-mute]" (no leading class).
+    const m = s.match(/^(?:\.([A-Za-z0-9_-]+))?\[([^\]=]+)(?:="([^"]*)")?\]$/)
+      || s.match(/^\.([A-Za-z0-9_-]+)$/);
+    if (!m) continue;
+    if (m[0].includes('[')) {
+      if (m[1] && !cls.includes(m[1])) continue;
+      const attrName = m[2];
+      // data-foo-bar → dataset.fooBar (the DOM's own camelCase mapping); the
+      // code sets dataset.<camel> directly, so the raw attribute name misses.
+      const key = attrName.startsWith('data-')
+        ? attrName.slice(5).replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase())
+        : attrName;
+      const val = data[key] ?? attrs[attrName];
+      if (m[3] === undefined) {
+        if (val !== undefined && val !== null) return true;
+      } else if (String(val) === m[3]) return true;
+    } else if (cls.includes(m[1])) {
+      return true;
+    }
+  }
+  return false;
+}
 function makeEl(tag) {
   const el = {
     tagName: tag.toUpperCase(),
@@ -43,20 +76,82 @@ function makeEl(tag) {
     remove() { if (this._parent) { const i = this._parent.children.indexOf(this); if (i >= 0) this._parent.children.splice(i, 1); delete this._parent; } if (this.id) delete byId[this.id]; },
     removeChild(c) { const i = this.children.indexOf(c); if (i >= 0) this.children.splice(i, 1); },
     setAttribute(k, v) { this.attributes[k] = v; },
+    getAttribute(k) { return this.attributes[k] ?? null; },
+    hasAttribute(k) { return Object.prototype.hasOwnProperty.call(this.attributes, k); },
     removeAttribute(k) { delete this.attributes[k]; },
-    querySelector(sel) { return null; },
-    querySelectorAll(sel) { return []; },
+    querySelector(sel) {
+      // [local-patch] fingerprint reuse needs the in-place refresh path to
+      // find real nodes in the mock (trigger/disc/menu rows), not nulls.
+      const match = (node) => {
+        if (!node || typeof node !== 'object') return null;
+        if (matchesMockSelector(node, sel)) return node;
+        for (const c of (node.children || [])) {
+          const hit = match(c);
+          if (hit) return hit;
+        }
+        return null;
+      };
+      for (const c of this.children) {
+        const hit = match(c);
+        if (hit) return hit;
+      }
+      return null;
+    },
+    querySelectorAll(sel) {
+      const hits = [];
+      const walk = (node) => {
+        if (!node || typeof node !== 'object') return;
+        if (matchesMockSelector(node, sel)) hits.push(node);
+        for (const c of (node.children || [])) walk(c);
+      };
+      for (const c of this.children) walk(c);
+      return hits;
+    },
     // [local-patch] real DOM elements expose these; the FAB volume slider and
     // outside-dismiss/hotkey wiring depend on them.
     addEventListener() {},
     removeEventListener() {},
+    setPointerCapture() {},
+    releasePointerCapture() {},
+    getBoundingClientRect() { return { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 }; },
     closest() { return null; },
+    insertBefore(c, ref) {
+      if (c && c._parent) c._parent.removeChild(c);
+      const i = ref ? this.children.indexOf(ref) : -1;
+      if (i >= 0) this.children.splice(i, 0, c);
+      else this.children.unshift(c);
+      if (c) { c._parent = this; if (c.id) byId[c.id] = c; }
+      return c;
+    },
+  };
+  el.classList = {
+    add: (...names) => {
+      const set = new Set(String(el.className || '').split(/\s+/).filter(Boolean));
+      for (const n of names) if (n) set.add(n);
+      el.className = [...set].join(' ');
+    },
+    remove: (...names) => {
+      const drop = new Set(names);
+      el.className = String(el.className || '').split(/\s+/).filter((c) => c && !drop.has(c)).join(' ');
+    },
+    toggle: (name, force) => {
+      const set = new Set(String(el.className || '').split(/\s+/).filter(Boolean));
+      const want = force === undefined ? !set.has(name) : !!force;
+      if (want) set.add(name); else set.delete(name);
+      el.className = [...set].join(' ');
+      return want;
+    },
+    contains: (name) => String(el.className || '').split(/\s+/).includes(name),
   };
   // [local-patch] emulate innerHTML assignment clearing children, as real DOM
-  // does — renderOrbContent() wipes the orb with container.innerHTML = "".
+  // does — renderOrbContent() wipes the orb with container.innerHTML = "". The
+  // last assigned string is remembered so the FAB icon assertions can read the
+  // markup back (real DOM would parse it into children; the glyph SVGs are
+  // opaque to the recursive findClass walk, so the raw string is what we check).
+  el._innerHTML = '';
   Object.defineProperty(el, 'innerHTML', {
-    get() { return ''; },
-    set() { el.children = []; },
+    get() { return el._innerHTML; },
+    set(v) { el._innerHTML = String(v ?? ''); el.children = []; },
   });
   return el;
 }
@@ -65,7 +160,7 @@ const bodyEl = makeEl("body");
 const document = {
   createElement: (t) => {
     const el = makeEl(t);
-    if (t === 'video') {
+    if (t === 'video' || t === 'audio') {
       let _src = '';
       Object.defineProperty(el, 'src', {
         get: () => _src,
@@ -74,6 +169,15 @@ const document = {
           if (_src.includes('/scene-anim/')) { animProbeSrcs.push(_src); animVideoEls.push({ el, src: _src }); }
         },
       });
+      // [local-patch] media-element surface the layer sync touches
+      // (play/pause/load + paused/ended/error reads); play() resolves so the
+      // playback-convergence path treats the mock as "playing".
+      el.paused = false;
+      el.ended = false;
+      el.error = null;
+      el.play = () => Promise.resolve();
+      el.pause = () => { el.paused = true; };
+      el.load = () => {};
     }
     if (t === 'img') {
       // 静态帧层（buildMedia 的 img 分支）的 src：用于锁定「回退静态帧必须带画面档位」。
@@ -90,6 +194,7 @@ const document = {
   querySelectorAll: () => [],
   head: makeEl("head"),
   body: bodyEl,
+  documentElement: makeEl("html"),
   // [local-patch] stub the add/removeEventListener pair used by the FAB
   // outside-click dismissal and global hotkey wiring.
   addEventListener: () => {},
@@ -199,6 +304,12 @@ const cap = { handoff: null };
 const sandbox = {
   window: {
     __ModuleLoader__: { load: (h) => { cap.handoff = h; } },
+    // [local-patch] the FAB drag rail reads viewport size + window listeners;
+    // without these setupFabDrag bails and dockFabPosition no-ops in the mock.
+    innerWidth: 1920,
+    innerHeight: 1080,
+    addEventListener: () => {},
+    removeEventListener: () => {},
     setTimeout: (fn, ms) => {
       const token = { fn, ms, cleared: false };
       rotationTimers.push(token);
@@ -705,18 +816,27 @@ setTimeout(async () => {
       tree3 = reopenPicker();
       seedCard = findCard(tree3, 'Wall 0');
     }
+    // [local-patch] 真的把这张视频壁纸点起来：上面的「前置」注释描述的正是
+    // 这一步，但选择被清空后从未恢复，于是 FAB 回归段一直在「没有活动壁纸
+    // → orb 本就不该存在」的状态下跑 —— 全是 console.log，静默假绿。
+    assert.ok(seedCard && typeof seedCard.props.onClick === 'function',
+      'seed card (Wall 0) must be clickable to build an active video wallpaper');
+    seedCard.props.onClick();
+    assert.ok(!!document.getElementById('dsh-wallpaper-engine-layer'),
+      'selecting a wallpaper must build the layer before the FAB assertions');
 // ── [local-patch] FAB orb regression: open the quick-control menu over a
-    // VIDEO wallpaper. The selection is 'a' (type video) from localStorage, so
-    // the menu must render the vertical volume pane WITHOUT throwing — a past
-    // revision declared volumeRow inside the if-block and the assembly step
-    // hit a ReferenceError, wiping the orb mid-render (orb vanished).
+    // VIDEO wallpaper. The active wallpaper is a video, so the menu must render
+    // the horizontal volume pane WITHOUT throwing — a past revision declared
+    // volumeRow inside the if-block and the assembly step hit a ReferenceError,
+    // wiping the orb mid-render (orb vanished).
     const fab = document.getElementById('dsh-wallpaper-engine-fab');
-    console.log('FAB orb mounted:', !!fab);
+    assert.ok(!!fab, 'FAB orb must be mounted for an active wallpaper with fabEnabled');
     if (fab) {
       const trigger = fab.children.find((c) => typeof c.className === 'string' && c.className.includes('we-fab__trigger'));
       let openError = null;
       try { trigger && trigger.onclick && trigger.onclick({ stopPropagation() {} }); } catch (e) { openError = e && e.message; }
       console.log('FAB toggle threw:', openError || '(none)');
+      assert.equal(openError, null, 'opening the FAB menu must not throw');
       // syncFloatingOrb re-rendered the orb: the expanded menu must exist.
       const fabAfter = document.getElementById('dsh-wallpaper-engine-fab');
       const findClass = (node, needle, hits) => {
@@ -735,34 +855,106 @@ setTimeout(async () => {
       console.log('expanded menu rendered after toggle:', menus.length > 0);
       console.log('horizontal volume row rendered (video wallpaper):', volRows.length > 0);
       console.log('volume slider present:', sliders.length > 0);
-      console.log('circular buttons count (expect 4: prev/play/next/mute):', (() => {
+      assert.ok(menus.length > 0, 'the expanded quick-control menu must render');
+      assert.ok(volRows.length > 0, 'a video wallpaper must render the volume row');
+      assert.ok(sliders.length > 0, 'the volume row must carry a slider');
+      const btnCount = (() => {
         const btns = []; if (fabAfter) findClass(fabAfter, 'we-fab__btn', btns); return btns.length;
-      })());
-      // ── [local-patch] vertical wallpaper list regression: the current
-      // rotation group (g1 = ['a','b']) renders two rows, the active one
-      // carries the --active class, and clicking a row switches selection.
+      })();
+      console.log('circular buttons count (expect 4: prev/play/next/mute):', btnCount);
+      assert.equal(btnCount, 4, 'prev/play/next/mute must all render for a video wallpaper');
+      // ── [local-patch] vertical wallpaper list: the current rotation group
+      // (g1 = ['a','b']) renders two rows; clicking a row switches selection
+      // and — critically — the orb must update IN PLACE. This is the
+      // regression guard for the reported "press a FAB button → the orb hard
+      // refreshes (flash)" bug: background emits used to reach syncFloatingOrb
+      // with no options and wipe innerHTML, rebuilding every node.
       const rows = []; const listRows = [];
-      if (fabAfter) {
-        findClass(fabAfter, 'we-fab__list-row', listRows);
-        for (const r of listRows) rows.push(r);
-      }
+      if (fabAfter) findClass(fabAfter, 'we-fab__list-row', listRows);
+      for (const r of listRows) rows.push(r);
       console.log('wallpaper list rows (expect 2 from group g1):', listRows.length);
-      console.log('active list row present:', listRows.some((r) => typeof r.className === 'string' && r.className.includes('we-fab__list-row--active')));
-      const activeLabel = listRows.find((r) => r.className.includes('--active'))?.children?.[0]?.textContent;
-      console.log('active list row label:', JSON.stringify(activeLabel));
-      // Click the NON-active row, expect applySelection to run (no throw).
-      const inactiveRow = listRows.find((r) => !r.className.includes('--active'));
+      assert.equal(listRows.length, 2, 'the g1 rotation group must render two list rows');
+      assert.ok(listRows.every((r) => r.dataset && r.dataset.weFabItemId),
+        'each list row must carry its stable data-we-fab-item-id');
+      const rowOf = (id) => listRows.find((r) => String(r.dataset.weFabItemId) === String(id));
+      const activeRow = () => listRows.find((r) => String(r.className).includes('we-fab__list-row--active'));
+      assert.equal(activeRow(), undefined,
+        'the freshly seeded wallpaper is outside g1, so no row is highlighted yet');
+      const rowA = rowOf('a');
+      assert.ok(rowA && typeof rowA.onclick === 'function', 'list row for group entry "a" must be clickable');
       let listClickError = null;
-      try { inactiveRow && inactiveRow.onclick && inactiveRow.onclick({ stopPropagation() {} }); } catch (e) { listClickError = e && e.message; }
+      try { rowA.onclick({ stopPropagation() {} }); } catch (e) { listClickError = e && e.message; }
       console.log('list row click threw:', listClickError || '(none)');
-      console.log('selection switched after list click:', JSON.parse(localStorage._store['dsh-wallpaper-engine:selection']).id);
+      assert.equal(listClickError, null, 'clicking a list row must not throw');
+      assert.equal(JSON.parse(localStorage._store['dsh-wallpaper-engine:selection']).id, 'a',
+        'clicking the row must switch the selection to that entry');
+      const fabAfterRow = document.getElementById('dsh-wallpaper-engine-fab');
+      const rowsAfter = []; findClass(fabAfterRow, 'we-fab__list-row', rowsAfter);
+      const rowAAfter = rowsAfter.find((r) => String(r.dataset.weFabItemId) === 'a');
+      const rowBAfter = rowsAfter.find((r) => String(r.dataset.weFabItemId) === 'b');
+      console.log('row "a" highlighted after click (in place):',
+        !!rowAAfter && String(rowAAfter.className).includes('we-fab__list-row--active'));
+      assert.ok(rowAAfter && String(rowAAfter.className).includes('we-fab__list-row--active'),
+        'the clicked row must gain the --active highlight');
+      assert.ok(rowBAfter && !String(rowBAfter.className).includes('--active'),
+        'the previously highlighted row must lose it');
+      assert.equal(rowAAfter, rowA,
+        'the row node must be REUSED (in-place refresh), not rebuilt — a rebuilt node means a hard refresh');
+
+      // ── [local-patch] In-place guard for the exact reported symptom: the
+      // play button's handler runs syncLayers + refresh + emit(), and that
+      // bare emit reaches the subscribed syncFloatingOrb. It must NOT rebuild
+      // the orb (no flash, no restarted disc/marquee, no dropped drag).
+      const playBtns = []; findClass(fabAfterRow, 'we-fab__btn--primary', playBtns);
+      assert.equal(playBtns.length, 1, 'the play/pause button must be present');
+      const playBtn = playBtns[0];
+      const triggerBefore = fabAfterRow.children.find((c) => typeof c.className === 'string' && c.className.includes('we-fab__trigger'));
+      let playClickError = null;
+      try { playBtn.onclick({ stopPropagation() {} }); } catch (e) { playClickError = e && e.message; }
+      console.log('play button click threw:', playClickError || '(none)');
+      assert.equal(playClickError, null, 'the play button must not throw');
+      const fabAfterPlay = document.getElementById('dsh-wallpaper-engine-fab');
+      const triggerAfterPlay = fabAfterPlay.children.find((c) => typeof c.className === 'string' && c.className.includes('we-fab__trigger'));
+      const playBtnsAfter = []; findClass(fabAfterPlay, 'we-fab__btn--primary', playBtnsAfter);
+      console.log('play button survived the emit (no hard refresh):',
+        playBtnsAfter.length === 1 && playBtnsAfter[0] === playBtn);
+      assert.equal(triggerAfterPlay, triggerBefore,
+        'the trigger node must survive a play-button emit (in-place refresh, no rebuild)');
+      assert.ok(playBtnsAfter.length === 1 && playBtnsAfter[0] === playBtn,
+        'the play button node must survive a play-button emit — a new node = the orb was rebuilt');
+
+      // ── [local-patch] mute toggle: the speaker glyph must follow the state
+      // through the IN-PLACE path (only a full rebuild used to swap it, so the
+      // in-place refresh would have left a stale icon behind).
+      const muteCandidates = []; findClass(fabAfterPlay, 'we-fab__btn', muteCandidates);
+      // data-we-fab-mute is an empty marker attribute — test for presence.
+      const muteBtn = muteCandidates.find((b) => b.dataset && 'weFabMute' in b.dataset);
+      assert.ok(muteBtn, 'the mute button must be present for a video wallpaper');
+      const loudGlyph = String(muteBtn.innerHTML).includes('<path');
+      assert.equal(loudGlyph, true, 'a non-muted wallpaper shows the sound-waves glyph');
+      let muteClickError = null;
+      try { muteBtn.onclick({ stopPropagation() {} }); } catch (e) { muteClickError = e && e.message; }
+      console.log('mute button click threw:', muteClickError || '(none)');
+      assert.equal(muteClickError, null, 'the mute button must not throw');
+      const fabAfterMute = document.getElementById('dsh-wallpaper-engine-fab');
+      const muteBtnsNow = []; findClass(fabAfterMute, 'we-fab__btn', muteBtnsNow);
+      const muteBtnNow = muteBtnsNow.find((b) => b.dataset && 'weFabMute' in b.dataset);
+      const mutedGlyph = String(muteBtnNow.innerHTML).includes('<line');
+      console.log('mute icon swapped in place (now muted glyph):', mutedGlyph);
+      assert.equal(muteBtnNow, muteBtn, 'the mute button node must survive its own emit');
+      assert.equal(mutedGlyph, true, 'muting must swap the speaker glyph in place');
+      assert.ok(String(muteBtnNow.className).includes('we-fab__btn--active'),
+        'the muted button must carry the --active class');
+
       // ── [local-patch] collapse list: toggle button flips the list to the
       // --collapsed class and clicking again restores it.
-      const collapseBtns = []; if (fabAfter) findClass(fabAfter, 'we-fab__collapse-btn', collapseBtns);
+      const collapseBtns = []; findClass(fabAfterPlay, 'we-fab__collapse-btn', collapseBtns);
       console.log('collapse button present:', collapseBtns.length > 0);
+      assert.ok(collapseBtns.length > 0, 'the list collapse toggle must render');
       let collapseError = null;
-      try { collapseBtns[0] && collapseBtns[0].onclick && collapseBtns[0].onclick({ stopPropagation() {} }); } catch (e) { collapseError = e && e.message; }
+      try { collapseBtns[0].onclick({ stopPropagation() {} }); } catch (e) { collapseError = e && e.message; }
       console.log('collapse toggle threw:', collapseError || '(none)');
+      assert.equal(collapseError, null, 'the collapse toggle must not throw');
       const listAfter = document.getElementById('dsh-wallpaper-engine-fab');
       let collapsedNow = false;
       if (listAfter) {
@@ -770,6 +962,14 @@ setTimeout(async () => {
         collapsedNow = lists.some((l) => typeof l.className === 'string' && l.className.includes('--collapsed'));
       }
       console.log('list collapsed after toggle:', collapsedNow);
+      assert.equal(collapsedNow, true, 'the collapse toggle must add --collapsed to the list');
+      // Collapsing changes the STRUCTURE fingerprint → that one legitimately
+      // rebuilds (the list really is hidden now), and it must stay collapsed.
+      // (Token match, not substring: 'we-fab__list' is also a prefix of the
+      // row/label/dot class names.)
+      const collapsedLists = []; findClass(listAfter, 'we-fab__list', collapsedLists);
+      assert.ok(collapsedLists.some((l) => String(l.className).split(/\s+/).includes('we-fab__list--collapsed')),
+        'the rebuilt list must still be there in collapsed form');
     }
   }
   console.log('effects ran:', effects.length);
