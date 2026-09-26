@@ -31,6 +31,9 @@ const animProbeSrcs = [];
 // （层内视频的 _parent 是 LAYER_ID 那个层节点）。
 const animVideoEls = [];
 const imgEls = [];
+// [local-patch] live MutationObserver instances (see the sandbox stub) so tests
+// can fire DOM-change callbacks on demand.
+const mutationObservers = [];
 // [local-patch] tiny selector matcher for the mock DOM: enough for the FAB
 // in-place refresh path (class selectors + [data-*] attribute selectors,
 // comma lists) so querySelector(All) finds real nodes instead of nulls.
@@ -64,6 +67,35 @@ function matchesMockSelector(node, sel) {
   }
   return false;
 }
+function queryMock(root, sel) {
+  // [local-patch] Real DOM semantics: an element ALSO matches its own selector
+  // (e.g. body.querySelector('[data-composer-seat]') finds a direct child, and
+  // orb.querySelector('.we-fab__menu') finds the panel itself).
+  const match = (node) => {
+    if (!node || typeof node !== 'object') return null;
+    if (matchesMockSelector(node, sel)) return node;
+    for (const c of (node.children || [])) {
+      const hit = match(c);
+      if (hit) return hit;
+    }
+    return null;
+  };
+  for (const c of root.children || []) {
+    const hit = match(c);
+    if (hit) return hit;
+  }
+  return null;
+}
+function queryAllMock(root, sel) {
+  const hits = [];
+  const walk = (node) => {
+    if (!node || typeof node !== 'object') return;
+    if (matchesMockSelector(node, sel)) hits.push(node);
+    for (const c of (node.children || [])) walk(c);
+  };
+  for (const c of root.children || []) walk(c);
+  return hits;
+}
 function makeEl(tag) {
   const el = {
     tagName: tag.toUpperCase(),
@@ -79,34 +111,8 @@ function makeEl(tag) {
     getAttribute(k) { return this.attributes[k] ?? null; },
     hasAttribute(k) { return Object.prototype.hasOwnProperty.call(this.attributes, k); },
     removeAttribute(k) { delete this.attributes[k]; },
-    querySelector(sel) {
-      // [local-patch] fingerprint reuse needs the in-place refresh path to
-      // find real nodes in the mock (trigger/disc/menu rows), not nulls.
-      const match = (node) => {
-        if (!node || typeof node !== 'object') return null;
-        if (matchesMockSelector(node, sel)) return node;
-        for (const c of (node.children || [])) {
-          const hit = match(c);
-          if (hit) return hit;
-        }
-        return null;
-      };
-      for (const c of this.children) {
-        const hit = match(c);
-        if (hit) return hit;
-      }
-      return null;
-    },
-    querySelectorAll(sel) {
-      const hits = [];
-      const walk = (node) => {
-        if (!node || typeof node !== 'object') return;
-        if (matchesMockSelector(node, sel)) hits.push(node);
-        for (const c of (node.children || [])) walk(c);
-      };
-      for (const c of this.children) walk(c);
-      return hits;
-    },
+    querySelector(sel) { return queryMock(this, sel); },
+    querySelectorAll(sel) { return queryAllMock(this, sel); },
     // [local-patch] real DOM elements expose these; the FAB volume slider and
     // outside-dismiss/hotkey wiring depend on them.
     addEventListener() {},
@@ -195,6 +201,11 @@ const document = {
   head: makeEl("head"),
   body: bodyEl,
   documentElement: makeEl("html"),
+  // [local-patch] document-level lookups. probeComposer() asks for
+  // "[data-composer-seat]" first; the headless host has no real CSS engine, so
+  // walk the tree with the same matcher the element-level querySelector uses.
+  querySelector(sel) { return queryMock(bodyEl, sel); },
+  querySelectorAll(sel) { return queryAllMock(bodyEl, sel); },
   // [local-patch] stub the add/removeEventListener pair used by the FAB
   // outside-click dismissal and global hotkey wiring.
   addEventListener: () => {},
@@ -333,6 +344,23 @@ const sandbox = {
     return token;
   },
   clearInterval: (token) => { if (token) token.cleared = true; },
+  // [local-patch] 可控 MutationObserver：mock 树不会自己派发变更，所以记录每个
+  // observer 的回调，测试里手动 fire() 来模拟「宿主重挂了输入框」这类 DOM 变更。
+  // 缺了它，refreshComposerBinding（宿主重挂时唯一重新接管的路径）永远不被执行，
+  // 「折叠态跨重挂存活」就会变成无人验证的死代码。
+  MutationObserver: function MutationObserver(cb) {
+    this._cb = cb;
+    this._targets = [];
+    mutationObservers.push(this);
+  },
+};
+sandbox.MutationObserver.prototype.observe = function observe(target, opts) {
+  this._targets.push({ target, opts });
+};
+sandbox.MutationObserver.prototype.disconnect = function disconnect() {
+  this._targets = [];
+  const i = mutationObservers.indexOf(this);
+  if (i >= 0) mutationObservers.splice(i, 1);
 };
 // 可控时钟：「帧率上限」按钮只有走到门禁的**冷缓存**分支（probeGpuFramePin 的
 // 30s TTL 过期）才能被行为断言测出是否真的走了门禁 —— 否则按钮路径与「选壁纸」
@@ -362,10 +390,29 @@ console.log('Symbol.toStringTag:', Object.prototype.toString.call(exportsObj));
 const registrations = [];
 const effects = [];
 const pickerRenders = [];
+// [local-patch] slot render callbacks keyed by slot name — the sidebar
+// composer-toggle test renders its component directly, so the settings
+// picker and the sidebar entry must not share one flat list.
+const slotRenders = {};
 const slots = {
   inject: (key, cb) => cb(),
-  register: (opts, render) => { registrations.push({ key: opts.name, id: opts.id, label: opts.label, order: opts.order }); pickerRenders.push(render); },
+  register: (opts, render) => {
+    registrations.push({ key: opts.name, id: opts.id, label: opts.label, order: opts.order });
+    if (opts.name === 'settings.section') pickerRenders.push(render);
+    slotRenders[opts.name] = slotRenders[opts.name] || [];
+    slotRenders[opts.name].push({ opts, render });
+  },
 };
+// [local-patch] The composer seat the sidebar toggle folds. A real element (not
+// a stub) so the collapse path writes/restores inline styles exactly as it does
+// against DSH, and `probeComposer` succeeds via its [data-composer-seat] branch.
+const composerSeat = makeEl('div');
+composerSeat.setAttribute('data-composer-seat', '');
+composerSeat.style.height = '120px';
+composerSeat.style.opacity = '1';
+composerSeat.style.paddingTop = '8px';
+composerSeat.style.paddingBottom = '8px';
+bodyEl.appendChild(composerSeat);
 const ctx = { slots, effect(fn) { effects.push(fn); fn(); return fn; } };
 
 let thrown = null;
@@ -985,6 +1032,118 @@ setTimeout(async () => {
       const triggerAfterCollapse = listAfter.children.find((c) => typeof c.className === 'string' && c.className.includes('we-fab__trigger'));
       assert.equal(triggerAfterCollapse, trigger,
         'the capsule must survive the chevron press too');
+    }
+
+    // ── [local-patch] 界面收纳：侧栏「收起 / 展开输入框」按钮 ──────────────
+    // 旧的底部白杠药丸（#dsh-we-trigger）已整体移除，触发入口改为注册进宿主
+    // 左侧边栏 sidebar.footer.action 槽位的图标按钮。这一组断言锁定：
+    //   ① 按钮确实按宿主契约注册（name/id/order）；
+    //   ② 点击真的折叠输入框（写 height/opacity 0）并可再展开还原；
+    //   ③ 两态图标与 aria-label 跟随状态切换；
+    //   ④ 旧的固定药丸节点不再出现在 DOM 里。
+    {
+      const footerRegs = registrations.filter((r) => r.key === 'sidebar.footer.action');
+      console.log('sidebar.footer.action registrations:', footerRegs.length);
+      assert.equal(footerRegs.length, 1, 'exactly one sidebar footer action must be registered');
+      assert.equal(footerRegs[0].id, 'wallpaper-engine-composer',
+        'the sidebar action must use the plugin-owned id (never a shipped one)');
+      assert.equal(footerRegs[0].order, -100,
+        'the sidebar action must be ordered ahead of the host defaults');
+
+      // 旧药丸必须彻底消失：宿主页面里不该再有那个 id 的节点。
+      assert.equal(document.getElementById('dsh-we-trigger'), null,
+        'the legacy bottom-pill trigger must no longer be mounted');
+
+      const entry = (slotRenders['sidebar.footer.action'] || [])[0];
+      assert.ok(entry && typeof entry.render === 'function', 'the sidebar entry must expose a render fn');
+      const btn = entry.render({ wide: false });
+      assert.ok(btn && btn.type === 'button', 'the sidebar entry must render a <button>');
+      assert.ok(String(btn.props.className).includes('we-sidebar-collapse-btn'),
+        'the button must carry the plugin sidebar class');
+
+      // 未折叠：可用、下箭头（收起语义）、aria-pressed=false。
+      console.log('sidebar toggle available:', !btn.props.disabled);
+      assert.equal(btn.props.disabled, false,
+        'the toggle must be enabled when the composer seat is present');
+      assert.equal(btn.props['aria-pressed'], 'false', 'initial state must be expanded');
+      assert.equal(btn.props.title, '收起输入框', 'initial tooltip must offer 「收起输入框」');
+
+      // 折叠：点一次 → 输入框高度/透明度归零，按钮进入 is-collapsed。
+      let clickErr = null;
+      try { btn.props.onClick(); } catch (e) { clickErr = e && e.message; }
+      console.log('sidebar toggle click threw:', clickErr || '(none)');
+      assert.equal(clickErr, null, 'clicking the sidebar toggle must not throw');
+      assert.equal(composerSeat.style.height, '0px',
+        'the composer must be folded to height 0');
+      assert.equal(composerSeat.style.opacity, '0',
+        'the composer must be faded out while folded');
+      assert.equal(composerSeat.style.overflow, 'hidden',
+        'the folded composer must clip its content');
+
+      const btnFolded = entry.render({ wide: false });
+      assert.ok(String(btnFolded.props.className).includes('is-collapsed'),
+        'the folded button must carry is-collapsed');
+      assert.equal(btnFolded.props.title, '展开输入框',
+        'the folded tooltip must offer 「展开输入框」');
+      assert.equal(btnFolded.props['aria-pressed'], 'true', 'aria-pressed must flip to true');
+
+      // 展开：再点一次 → 还原到原始内联样式（而不是清空成默认值）。
+      btnFolded.props.onClick();
+      assert.equal(composerSeat.style.height, '120px',
+        'expanding must restore the original height, not blank it');
+      assert.equal(composerSeat.style.opacity, '1', 'expanding must restore the original opacity');
+      assert.equal(composerSeat.style.paddingTop, '8px',
+        'expanding must restore the original padding');
+      const btnBack = entry.render({ wide: false });
+      assert.equal(btnBack.props['aria-pressed'], 'false', 'expanding must clear the pressed state');
+
+      // 宽栏（wide=true）与窄轨（56px rail）都必须渲染同一个按钮 —— 宿主
+      // 用 props.wide 区分，插件据此切换 is-rail（正方形、只图标）与文字标签。
+      const btnWide = entry.render({ wide: true });
+      assert.ok(btnWide && String(btnWide.props.className).includes('we-sidebar-collapse-btn'),
+        'the toggle must render identically in the wide layout');
+      assert.ok(!String(btnWide.props.className).includes('is-rail'),
+        'the wide layout must NOT use the rail sizing');
+      const btnRail = entry.render({ wide: false });
+      assert.ok(String(btnRail.props.className).includes('is-rail'),
+        'the 56px rail must use the square rail sizing');
+      // 两者都要带文字标签节点（窄轨由 CSS 隐藏，而非不渲染 —— 保住可访问名）。
+      const childKinds = (el) => (el.children || []).filter((c) => c && typeof c === 'object');
+      console.log('sidebar toggle keeps its text label in both layouts:',
+        childKinds(btnWide).some((c) => c.props && String(c.props.className).includes('we-sidebar-collapse-label')));
+      assert.ok(childKinds(btnWide).some((c) => c.props && String(c.props.className).includes('we-sidebar-collapse-label')),
+        'the wide button must carry a text label');
+      assert.ok(childKinds(btnRail).some((c) => c.props && String(c.props.className).includes('we-sidebar-collapse-label')),
+        'the rail button must still render the label node (CSS hides it)');
+
+      // ── 宿主重挂输入框：折叠态必须跟着走，且旧节点的样式要被还原 ─────────
+      // 切会话/路由变化时 DSH 会换掉 composer 容器。真实的接管路径是
+      // MutationObserver → refreshComposerBinding（不是点击按钮）。若插件把
+      // 「旧节点的原始内联值」写进新节点上，或丢掉折叠态让输入框自己弹回来，
+      // 用户看到的就是「收了又开」。这里模拟一次重挂并断言两件事。
+      const seat2 = makeEl('div');
+      seat2.setAttribute('data-composer-seat', '');
+      seat2.style.height = '200px';
+      seat2.style.opacity = '1';
+      // 先折叠（旧节点进入折叠态）。
+      entry.render({ wide: false }).props.onClick();
+      assert.equal(composerSeat.style.height, '0px', 'the first seat must be folded before the remount');
+      // 宿主重挂：旧节点摘掉座位标记，新节点接上 —— 然后派发一次 DOM 变更。
+      composerSeat.removeAttribute('data-composer-seat');
+      bodyEl.appendChild(seat2);
+      assert.ok(mutationObservers.length > 0, 'the composer watcher must install a MutationObserver');
+      for (const mo of [...mutationObservers]) {
+        if (mo._targets.length) mo._cb([]);
+      }
+      assert.equal(seat2.style.height, '0px',
+        'a remounted composer container must pick up the folded state');
+      // 旧节点不能停留在被折叠的样式上（它已不再是被接管的那个）。
+      assert.equal(composerSeat.style.height, '120px',
+        'the detached composer node must be restored, not left folded');
+      // 展开：新节点回到它自己的原始值（200px），而不是旧节点的 120px。
+      entry.render({ wide: false }).props.onClick();
+      assert.equal(seat2.style.height, '200px',
+        'expanding must restore the NEW container\'s own original height');
     }
   }
   console.log('effects ran:', effects.length);
