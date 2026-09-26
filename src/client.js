@@ -944,7 +944,7 @@ async function loadInventory() {
       const usable = firstUsableGroup();
       if (usable) selection.rotationGroupId = usable.id;
       else selection.rotationEnabled = false;
-    } else if (rotationCandidates().length < 2) {
+    } else if (activeRotationGroup() && activeRotationGroup().videoOnly ? rotationCandidates().length < 1 : rotationCandidates().length < 2) {
       const usable = firstUsableGroup();
       if (usable && usable.id !== selection.rotationGroupId) selection.rotationGroupId = usable.id;
       else if (!usable) selection.rotationEnabled = false;
@@ -1095,17 +1095,21 @@ function wallpaperById() {
   return byIdCache;
 }
 
+function isGroupWallpaperPlayable(w, group) {
+  if (!w || !isPlayableType(w) || isHiddenWallpaper(w.id)) return false;
+  // Safety gate: content rating filter always applies
+  if (!matchesRatingFilter(w)) return false;
+  // Video-only filter
+  if (group && group.videoOnly && w.type !== "video") return false;
+  return true;
+}
+
 function groupWallpapers(group) {
   if (!group || !Array.isArray(group.wallpaperIds)) return [];
   const byId = wallpaperById();
   return group.wallpaperIds
     .map((id) => byId.get(id))
-    .filter((w) => w
-      && isRotatableWallpaper(w)
-      // videoOnly lists keep only video entries — non-video ids picked before
-      // the type existed (or via WE import) drop out at runtime.
-      && (!group.videoOnly || w.type === "video")
-      && !isHiddenWallpaper(w.id));
+    .filter((w) => isGroupWallpaperPlayable(w, group));
 }
 
 function rotationCandidates() {
@@ -1113,7 +1117,10 @@ function rotationCandidates() {
 }
 
 function firstUsableGroup() {
-  return selection.rotationGroups.find((g) => groupWallpapers(g).length >= 2) || null;
+  return selection.rotationGroups.find((g) => {
+    const len = groupWallpapers(g).length;
+    return g.videoOnly ? len >= 1 : len >= 2;
+  }) || null;
 }
 
 // First run / upgrade path: turn the first playable Wallpaper Engine playlist
@@ -1151,35 +1158,40 @@ function nextRotationWallpaper(manual) {
   const list = rotationCandidates();
   if (list.length === 0) return null;
   const group = activeRotationGroup();
+  const anchor = rotationAnchorWallpaper();
+  const anchorId = anchor ? anchor.id : selection.id;
+
   if (group && group.videoOnly) {
     if (group.order === "loop" && !manual) {
       // Auto-advance in loop mode: replay the current video.
-      return list.find((w) => w.id === selection.id) || list[0];
+      return list.find((w) => w.id === anchorId) || list[0];
     }
     if (group.order === "loop") {
-      // Manual next: step to the NEXT video in order (it becomes the looped
-      // one); with a single entry there is nowhere to step.
-      if (list.length < 2) return null;
-      const current = list.findIndex((w) => w.id === selection.id);
-      return list[(current + 1 + list.length) % list.length] || null;
+      // Manual next: step to the NEXT video in order
+      if (list.length < 2) return list[0] || null;
+      const current = list.findIndex((w) => w.id === anchorId);
+      const idx = current >= 0 ? current : 0;
+      return list[(idx + 1 + list.length) % list.length] || null;
     }
-    if (list.length === 1 && !manual) return list[0];
+    if (list.length <= 1) return list[0] || null;
     if (group.order === "random") {
       // Random pick for auto-advance AND manual next.
-      const candidates = list.filter((w) => w.id !== selection.id);
-      return candidates[Math.floor(Math.random() * candidates.length)] || null;
+      const candidates = list.filter((w) => w.id !== anchorId);
+      return candidates[Math.floor(Math.random() * candidates.length)] || list[0] || null;
     }
     // sequence: walk in order, wrap at the tail.
-    const current = list.findIndex((w) => w.id === selection.id);
-    return list[(current + 1 + list.length) % list.length] || null;
+    const current = list.findIndex((w) => w.id === anchorId);
+    const idx = current >= 0 ? current : 0;
+    return list[(idx + 1 + list.length) % list.length] || null;
   }
   if (group && group.order === "random" && list.length >= 2) {
-    const candidates = list.filter((w) => w.id !== selection.id);
-    return candidates[Math.floor(Math.random() * candidates.length)] || null;
+    const candidates = list.filter((w) => w.id !== anchorId);
+    return candidates[Math.floor(Math.random() * candidates.length)] || list[0] || null;
   }
-  if (list.length < 2) return null;
-  const current = list.findIndex((w) => w.id === selection.id);
-  return list[(current + 1 + list.length) % list.length] || null;
+  if (list.length < 2) return list[0] || null;
+  const current = list.findIndex((w) => w.id === anchorId);
+  const idx = current >= 0 ? current : 0;
+  return list[(idx + 1 + list.length) % list.length] || null;
 }
 
 // 轮换锚点 = 当前【实际显示】的壁纸（按 selection.url / sceneFrameUrl 反查），
@@ -1232,19 +1244,18 @@ function prevRotationWallpaper() {
   const list = rotationCandidates();
   if (list.length < 1) return null;
   const group = activeRotationGroup();
+  const anchor = rotationAnchorWallpaper();
+  const anchorId = anchor ? anchor.id : selection.id;
   if (group && group.videoOnly) {
-    if (group.order === "random") {
-      // Deterministic step-back: the entry before the current one.
-      const current = list.findIndex((w) => w.id === selection.id);
-      return list[(current - 1 + list.length) % list.length] || null;
-    }
-    // sequence / loop: step back in order (loop replays the same single entry).
-    const current = list.findIndex((w) => w.id === selection.id);
-    return list[(current - 1 + list.length) % list.length] || null;
+    if (list.length <= 1) return list[0] || null;
+    const current = list.findIndex((w) => w.id === anchorId);
+    const idx = current >= 0 ? current : 0;
+    return list[(idx - 1 + list.length) % list.length] || null;
   }
-  if (list.length < 2) return null;
-  const current = list.findIndex((w) => w.id === selection.id);
-  return list[(current - 1 + list.length) % list.length] || null;
+  if (list.length < 2) return list[0] || null;
+  const current = list.findIndex((w) => w.id === anchorId);
+  const idx = current >= 0 ? current : 0;
+  return list[(idx - 1 + list.length) % list.length] || null;
 }
 
 function clearRotationTimer() {
@@ -1841,13 +1852,13 @@ function startEditGroup(id) {
 }
 
 function startCreateGroup(videoOnly) {
+  const isVideo = videoOnly === true;
   selection.editing = {
     id: nextGroupId(),
-    name: (videoOnly ? "视频列表 " : "轮播列表 ") + (selection.rotationGroups.length + 1),
+    name: (isVideo ? "视频列表 " : "轮播列表 ") + (selection.rotationGroups.length + 1),
     interval: DEFAULTS.rotationInterval,
-    // videoOnly lists default to sequence (ordered, wrapping).
-    order: videoOnly ? "sequence" : "sequence",
-    videoOnly: videoOnly === true,
+    order: "sequence",
+    videoOnly: isVideo,
     wallpaperIds: [],
   };
   emit();
@@ -3983,7 +3994,18 @@ function buildMedia(sel) {
         const g = activeRotationGroup();
         if (!g || !g.videoOnly || selection.type !== "video") return;
         const next = nextRotationWallpaper();
-        if (next && next.id !== selection.id) applySelection(next.id);
+        if (next) {
+          if (next.id !== selection.id) {
+            pendingRotationFade = true;
+            applySelection(next.id);
+          } else {
+            // Replay current video seamlessly if single-item list
+            try {
+              media.currentTime = 0;
+              media.play().catch(() => {});
+            } catch { /* ignore */ }
+          }
+        }
       });
     }
     // 音轨按用户设置应用（见 weApplyAudio）：默认 0 音量 → 行为与原来的
@@ -5698,6 +5720,7 @@ function renderOrbContent(container) {
       muteBtn.onclick = (e) => {
         e.stopPropagation();
         selection.muted = !selection.muted;
+        selection.videoAudioEnabled = !selection.muted;
         persistSelection();
         syncLayers({ refreshFloatingOrb: false });
         refreshFloatingOrbState();
@@ -5723,12 +5746,15 @@ function renderOrbContent(container) {
       volumeSlider.addEventListener("click", (event) => event.stopPropagation());
       volumeSlider.addEventListener("input", (event) => {
         selection.volume = clampNum(Number(event.target.value), 0, 100, 50);
-        if (selection.volume > 0 && selection.muted) selection.muted = false;
-        volumeIcon.textContent = selection.volume === 0 ? "🔇" : "🔊";
+        selection.videoVolume = selection.volume / 100;
+        if (selection.volume > 0 && selection.muted) {
+          selection.muted = false;
+          selection.videoAudioEnabled = true;
+        }
+        volumeIcon.textContent = selection.volume === 0 || selection.muted ? "🔇" : "🔊";
         const video = document.querySelector(`#${LAYER_ID} video`);
         if (video) {
-          video.muted = selection.muted === true;
-          video.volume = selection.volume / 100;
+          weApplyAudio(video);
         }
         persistSelection();
       });
@@ -6527,8 +6553,10 @@ function WallpaperPicker(props) {
   const onToggleAudio = () => {
     const enabling = selection.videoAudioEnabled === false;
     selection.videoAudioEnabled = enabling;
+    selection.muted = !enabling;
     if (enabling && clampNum(selection.videoVolume, 0, 1, 0) <= 0) {
       selection.videoVolume = DEFAULT_AUDIO_VOLUME;
+      selection.volume = Math.round(DEFAULT_AUDIO_VOLUME * 100);
     }
     const layer = document.getElementById(LAYER_ID);
     const v = layer && layer.querySelector("video");
@@ -6544,6 +6572,8 @@ function WallpaperPicker(props) {
   // 音量滑块（0–100%）：视频 / 场景内嵌 MP4 / 场景包内音频共用同一 videoVolume。
   const onVideoVolume = (pct) => {
     selection.videoVolume = clampNum(Number(pct) / 100, 0, 1, 0);
+    selection.volume = Math.round(selection.videoVolume * 100);
+    selection.muted = selection.videoVolume === 0 || selection.videoAudioEnabled === false;
     const layer = document.getElementById(LAYER_ID);
     const vid = layer && layer.querySelector("video");
     if (vid) weApplyAudio(vid);
@@ -7115,6 +7145,16 @@ function WallpaperPicker(props) {
 
   // ── 页签面板内容（函数声明提升，renderActiveTab 在 return 里先调用）──────
   function renderWallpaperTab() {
+    const isVideoGroup = Boolean(group && group.videoOnly);
+    const canRotate = isVideoGroup ? playableCount >= 1 : playableCount >= 2;
+    const rotationHint = !sel.rotationGroupId
+      ? "请先选择或新建一个轮播列表"
+      : !canRotate
+        ? (isVideoGroup ? "当前视频列表至少需要 1 个可播放视频" : "当前列表至少需要 2 个可播放壁纸")
+        : isVideoGroup
+          ? (group.order === "loop" ? "单曲循环 · 视频播完自动重播" : (group.order === "random" ? "随机连播 · 视频播完切下一部" : "顺序连播 · 视频播完切下一部"))
+          : ("每 " + (group ? group.interval : DEFAULTS.rotationInterval) + " 分钟切换一次");
+
     return React.createElement(React.Fragment, null,
       // ── 当前壁纸: vinyl record beside the selection, in both card styles. ──
       React.createElement("div", { className: "we-picker__section" },
@@ -7236,8 +7276,13 @@ function WallpaperPicker(props) {
         ),
         React.createElement("button", {
           className: "we-picker__btn", type: "button",
-          onClick: startCreateGroup,
-        }, "新建"),
+          onClick: () => startCreateGroup(false),
+        }, "新建列表"),
+        React.createElement("button", {
+          className: "we-picker__btn", type: "button",
+          onClick: () => startCreateGroup(true),
+          title: "新建视频专属列表：视频播完自动切换下一部，不受分钟定时器限制",
+        }, "新建视频列表"),
         React.createElement("button", {
           className: "we-picker__btn", type: "button",
           onClick: () => startEditGroup(sel.rotationGroupId),
@@ -7260,16 +7305,34 @@ function WallpaperPicker(props) {
           }),
         ),
         React.createElement("div", { className: "we-picker__row" },
-          React.createElement("span", { className: "we-picker__hint we-picker__label" }, "间隔"),
-          React.createElement("select", {
-            className: "we-picker__rotation-interval",
-            value: String(editing.interval),
-            onChange: (e) => { editing.interval = clampNum(Number(e.target.value), 1, 1440, DEFAULTS.rotationInterval); emit(); },
-            "aria-label": "轮播间隔",
-          },
-          ...INTERVALS.map((minutes) =>
-            React.createElement("option", { key: minutes, value: String(minutes) }, minutes + " 分钟"),
-          )),
+          React.createElement("label", { style: { display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" } },
+            React.createElement("input", {
+              type: "checkbox",
+              checked: editing.videoOnly === true,
+              onChange: (e) => {
+                editing.videoOnly = e.target.checked;
+                if (editing.videoOnly && editing.name.startsWith("轮播列表")) {
+                  editing.name = editing.name.replace("轮播列表", "视频列表");
+                }
+                emit();
+              },
+            }),
+            React.createElement("span", { className: "we-picker__hint" }, "视频专属列表（播完自动连播 · 不受定时器限制）"),
+          ),
+        ),
+        React.createElement("div", { className: "we-picker__row" },
+          !editing.videoOnly && React.createElement(React.Fragment, null,
+            React.createElement("span", { className: "we-picker__hint we-picker__label" }, "间隔"),
+            React.createElement("select", {
+              className: "we-picker__rotation-interval",
+              value: String(editing.interval),
+              onChange: (e) => { editing.interval = clampNum(Number(e.target.value), 1, 1440, DEFAULTS.rotationInterval); emit(); },
+              "aria-label": "轮播间隔",
+            },
+            ...INTERVALS.map((minutes) =>
+              React.createElement("option", { key: minutes, value: String(minutes) }, minutes + " 分钟"),
+            )),
+          ),
           React.createElement("span", { className: "we-picker__hint we-picker__label" }, "顺序"),
           React.createElement("select", {
             className: "we-picker__playlist-select",
@@ -7277,14 +7340,17 @@ function WallpaperPicker(props) {
             onChange: (e) => { editing.order = e.target.value; emit(); },
             "aria-label": "轮播顺序",
           },
-          React.createElement("option", { value: "sequence" }, "顺序"),
-          React.createElement("option", { value: "random" }, "随机"),
+          React.createElement("option", { value: "sequence" }, "顺序播放"),
+          React.createElement("option", { value: "loop" }, "单曲循环"),
+          React.createElement("option", { value: "random" }, "随机播放"),
           ),
         ),
         React.createElement("div", { className: "we-picker__editor-grid" },
           playableInventory().length === 0
             ? React.createElement("span", { className: "we-picker__hint" }, "没有可播放的壁纸")
-            : (cdMode ? playableInventory() : editorPageView.items).map((w) => {
+            : (cdMode ? playableInventory() : editorPageView.items)
+                .filter((w) => !editing.videoOnly || w.type === "video")
+                .map((w) => {
                 const checked = editing.wallpaperIds.indexOf(w.id) >= 0;
                 return React.createElement("button", {
                   key: w.id,
@@ -7344,18 +7410,13 @@ function WallpaperPicker(props) {
         ),
       ),
       React.createElement("div", { className: "we-picker__ctl" },
-        ctlText("自动轮转",
-          !sel.rotationGroupId
-            ? "请先选择或新建一个轮播列表"
-            : playableCount < 2
-              ? "当前列表至少需要 2 个可播放壁纸"
-              : "每 " + (group ? group.interval : DEFAULTS.rotationInterval) + " 分钟切换一次"),
+        ctlText("自动轮转", rotationHint),
         React.createElement("div", { className: "we-picker__ctl-side" },
-          React.createElement("select", {
+          !isVideoGroup && React.createElement("select", {
             className: "we-picker__rotation-interval",
             value: String(group ? group.interval : DEFAULTS.rotationInterval),
             onChange: onGroupInterval,
-            disabled: !sel.rotationEnabled || !sel.rotationGroupId || playableCount < 2,
+            disabled: !sel.rotationEnabled || !sel.rotationGroupId || !canRotate,
             "aria-label": "轮转间隔",
           },
           ...INTERVALS.map((minutes) =>
@@ -7365,8 +7426,8 @@ function WallpaperPicker(props) {
             checked: sel.rotationEnabled,
             onChange: onToggleRotation,
             label: "自动轮转",
-            disabled: !sel.rotationGroupId || playableCount < 2,
-            title: "按列表顺序/随机自动切换壁纸",
+            disabled: !sel.rotationGroupId || !canRotate,
+            title: isVideoGroup ? "开启视频列表自动连播" : "按列表顺序/随机自动切换壁纸",
           }),
         ),
       ),
