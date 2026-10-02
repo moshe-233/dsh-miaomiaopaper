@@ -33,7 +33,7 @@ prerequisite is unchanged (≥ 0.19.0) — the latest release the market install
 
 1. **Update DeepSeek Harness / DSH Desktop first**: check for updates via the desktop app's top-bar version info, or grab the installer from [GitHub Releases](https://github.com/anywhere-labs/dsh-desktop/releases);
 2. **Then update dsh-better-sidebar to 0.19.0+**: `dsh plugin --profile web add dsh-better-sidebar@latest`;
-3. **Finally update this plugin**: `dsh plugin --profile web add dsh-plugin-wallpaper-engine` (or click update in the plugin market).
+3. **Finally update this plugin**: `dsh plugin --profile web add @moshe233/dsh-miaomiaopaper` (or click update in the plugin market).
 
 > 💡 Also update your **other DSH plugins at the same time**: older plugins may fail to load outright on
 > harness 0.1.5 (an old dsh-better-sidebar was observed misbehaving on 0.1.5 due to API changes).

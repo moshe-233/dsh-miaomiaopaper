@@ -1,4 +1,4 @@
-# dsh-plugin-wallpaper-engine bundle patch.
+# @moshe233/dsh-miaomiaopaper bundle patch.
 #
 # Applied over the dsh-web-app layer. This bundle contributes ONE host row
 # (the plugin that scans Wallpaper Engine and serves its media) and relies on
@@ -17,7 +17,7 @@
     # /preview, …; docs/ROUTE-INDEX.md is the authoritative table — it is generated
     # and machine-checked, so the route count is deliberately not repeated here).
     - id: wallpaper-engine
-      name: 'dsh-plugin-wallpaper-engine'
+      name: '@moshe233/dsh-miaomiaopaper'
       # webServer is a hard dependency (`inject = ['webServer']` in lib/index.js):
       # the Loader waits for the HTTP server to mount, so a headless/TUI profile
       # without one does not load this bundle at all.

@@ -41,7 +41,7 @@ Get-Process 'DeepSeek Harness','DSH Desktop' | Select-Object ProcessName,Id,Star
 
 顺带两条容易误判的点：
 
-- **插件目录通常是 junction**（`~/.dsh/profiles/<profile>/node_modules/dsh-plugin-wallpaper-engine → 工作区`），
+- **插件目录通常是 junction**（`~/.dsh/profiles/<profile>/node_modules/@moshe233/dsh-miaomiaopaper → 工作区`），
   所以"文件已经是新的"不代表"内存里是新的" —— 值得核对的是**加载时刻**，不是文件内容。
 - **面板那行「实时渲染失败（…）已自动回退」来自持久化的失败记忆**（`config.json` 的
   `settings.sceneLiveFailures`），与"这次到底有没有出帧"无关。换管线（新 bundle / 宿主开始给出
@@ -71,7 +71,7 @@ pnpm 就会拒绝继续安装任何插件。
 # 2) 删除该 profile 的依赖目录（只删 node_modules 即可，配置/已装插件名不会丢）
 Remove-Item "$env:USERPROFILE\.dsh-desktop\profiles\web\node_modules" -Recurse -Force
 # 3) 重新安装本插件
-dsh plugin --profile web add dsh-plugin-wallpaper-engine
+dsh plugin --profile web add @moshe233/dsh-miaomiaopaper
 ```
 
 > 只删除 `node_modules\.modules.yaml` 一个文件也能修复（pnpm 会自动重建并继续），删除整个
@@ -89,7 +89,7 @@ pnpm 11 出于供应链安全，默认拒绝从 git 安装的包执行构建脚�
 脚本构建 client，因此 `github:` 直装必然失败。请改用 **npm 包名**安装（npm 发布包已预构建，无需安装时编译）：
 
 ```sh
-dsh plugin --profile web add dsh-plugin-wallpaper-engine
+dsh plugin --profile web add @moshe233/dsh-miaomiaopaper
 ```
 
 > 如果你的插件中心（dsh-plugin-hub）生成的是 `github:` 命令，请把它升级到 **v1.4.1+**——新版会自动反查

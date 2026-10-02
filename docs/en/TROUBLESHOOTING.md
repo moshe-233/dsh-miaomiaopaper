@@ -24,7 +24,7 @@ no longer matches, so pnpm refuses to install anything into that profile.
 # 2) Remove the profile's dependency directory (only node_modules — config / installed plugin names are kept)
 Remove-Item "$env:USERPROFILE\.dsh-desktop\profiles\web\node_modules" -Recurse -Force
 # 3) Reinstall this plugin
-dsh plugin --profile web add dsh-plugin-wallpaper-engine
+dsh plugin --profile web add @moshe233/dsh-miaomiaopaper
 ```
 
 > Deleting just `node_modules\.modules.yaml` also works (pnpm recreates it and continues); removing
@@ -45,7 +45,7 @@ always fail. Use the **npm package name** instead (the published npm package is 
 compile-time build needed):
 
 ```sh
-dsh plugin --profile web add dsh-plugin-wallpaper-engine
+dsh plugin --profile web add @moshe233/dsh-miaomiaopaper
 ```
 
 > If your plugin hub (dsh-plugin-hub) generated a `github:` command, upgrade it to **v1.4.1+** — the
