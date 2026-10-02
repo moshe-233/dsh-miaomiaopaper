@@ -94,7 +94,7 @@ function FloatingWallpaperControl() {
     React.createElement('button', { type:'button',className:'we-fab__disc',ref:discRef,'aria-label':weT('悬浮播放器'),'aria-expanded':open,'aria-controls':'we-mini-player',title:weT('点击展开，拖动调整位置'),
       onPointerDown:e=>{ if(e.button!==0)return; suppressClick.current=false; drag.current={id:e.pointerId,start:e.clientY,x:e.clientX,offset:e.clientY-top,top,moved:false}; if(e.currentTarget.setPointerCapture)e.currentTarget.setPointerCapture(e.pointerId); },
       onClick:()=>{if(suppressClick.current){suppressClick.current=false;return;}setOpen(!open);setListOpen(false);},
-    },fabIcon(open?'collapse':'wallpaper'),React.createElement('span',{className:'we-fab__status','aria-hidden':true})),
+    },React.createElement(VinylRecord,{sm:true,cover:current && current.preview,title:current?current.title:'',playing:playbackLive && Boolean(sel.url) && vinylSpinVisible()}),React.createElement('span',{className:'we-fab__status','aria-hidden':true})),
     open && React.createElement('section', {id:'we-mini-player',className:'we-fab__panel','aria-label':weT('悬浮播放器'),style:{[left?'left':'right']:0,[top>height/2?'bottom':'top']:'62px',maxHeight:fabPanelMaxHeight(top,height)+'px'}},
       React.createElement('header',{className:'we-fab__header'},
         React.createElement('span',{className:'we-fab__eyebrow'},weT('悬浮播放器')),

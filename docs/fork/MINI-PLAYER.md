@@ -14,7 +14,7 @@
 
 ## 悬浮窗交互
 
-- 收起态：52px 玻璃按钮，显示播放状态指示点。
+- 收起态：52px 黑胶唱片按钮，直接复用壁纸库的 `VinylRecord`，中心显示当前封面，并保留播放状态指示点。
 - 展开态：封面、标题、真实播放状态、上一张/播放或暂停/下一张、从头播放，以及内嵌壁纸列表。
 - **收起**只关闭面板，保留入口；**关闭**关闭整个悬浮控件，不停止壁纸播放。
 - 列表不再嵌套完整 QuickPanel，不重复显示播放器、设置页签和轮播编辑器。仍使用现有库存、来源筛选、媒体准备和选择链。
@@ -34,7 +34,7 @@
 
 ## 验证
 
-- Windows 完整 `npm run verify:all` 退出码 0，25 个 fork 测试通过；保留原有 warn-only 告警和平台跳过项，见 [VALIDATION.md](VALIDATION.md)。
+- Windows 完整 `npm run verify:all` 退出码 0，26 个 fork 测试通过；保留原有 warn-only 告警和平台跳过项，见 [VALIDATION.md](VALIDATION.md)。
 - DSH NEXT 真实页面验证：默认项覆盖另一张有效的历史壁纸；设置/取消默认按钮；壁纸库开关；播放/暂停；列表选片；收起与关闭的区别。
 - 真实鼠标拖动到上/下半区：842px 高视口内，列表边界分别为约 372.8–830 和 12–469.2，均未越界。
 - 验证了输入区快捷键避让、Esc、主题材质变化、减少动态效果；观察窗口内未捕获到插件运行异常，native phase 为 `ready`。
@@ -50,9 +50,23 @@
 本次备份与本地安装源：
 
 ```text
-C:\Users\Administrator\Desktop\code\arena-linux\miao-deploy-20261002-mini-player
+C:\Users\Administrator\Desktop\code\arena-linux\miao-deploy-20261002-vinyl
 ```
 
-最终依赖指向 `artifacts/final/dsh-plugin-wallpaper-engine-1.2.0.tgz`，由桌面端官方 CLI 安装。请保留该目录用于后续修复/重装。`backup/` 中包含安装前 profile 配置、锁文件和壁纸配置，不要公开上传备份。
+最终依赖指向 `artifacts/dsh-plugin-wallpaper-engine-1.2.0.tgz`，由桌面端官方 CLI 安装。请保留该目录用于后续修复/重装。`backup/` 中包含安装前 profile 配置、锁文件和壁纸配置，不要公开上传备份。
 
 之前一轮联调是历史记录，见 [DESKTOP-TEST.md](DESKTOP-TEST.md)；其“启动兜底优先级”和旧悬浮球说明不代表本次的新行为。
+
+## 黑胶旋转与 Windows 动画设置
+
+悬浮入口和壁纸库使用同一唱片组件、同一 8 秒匀速旋转动画。播放时转动，暂停时通过 animation-play-state 停在当前角度，继续播放时继续旋转；隐藏页面时停止装饰动画。关闭悬浮窗不会停止壁纸库内唱片的旋转。
+
+实机检测到 Windows/Electron 报告 `prefers-reduced-motion: reduce`。因此播放状态正确时，系统偏好仍会令动画为 `none`。用户选择手动修改系统设置，而不是让唱片绕过该偏好：
+
+1. Windows 10：设置 → 轻松使用 → 显示。
+2. 在“简化和个性化 Windows”中，**开启“在 Windows 中显示动画”**。
+3. 可用 Win+R → `ms-settings:easeofaccess-display` 打开设置页；必要时退出并重新打开 DSH NEXT。
+
+没有修改系统开关，也没有在源码中移除减少动态效果规则。此次在真实桌面渲染器里临时模拟 `no-preference`：实测两处 CSS transform 随时间变化，暂停后稳定，恢复后继续变化；也验证了关闭悬浮窗、真实鼠标拖动及 `reduce` 模式停止动画。模拟在测试结束时清除，不能将其当作系统设置已经关闭。
+
+本轮临时 3 个媒体已清理，原有 9 项保留；壁纸设置恢复，调试端口关闭，桌面端恢复正常启动。

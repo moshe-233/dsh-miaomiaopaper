@@ -64,7 +64,10 @@ body[data-ds-dark-theme] .we-fab{--we-mini-glass:rgba(29,32,40,.82);--we-mini-so
 .we-fab button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
 .we-fab__disc,.we-fab__panel{background:linear-gradient(145deg,rgba(255,255,255,.18),transparent 55%),var(--we-mini-glass);-webkit-backdrop-filter:blur(28px) saturate(170%);backdrop-filter:blur(28px) saturate(170%);border:1px solid var(--we-mini-line);box-shadow:0 16px 48px #0002,0 2px 6px #0001,inset 0 1px 0 #ffffff38}
 .we-fab__disc{position:relative;display:grid;place-items:center;width:52px;height:52px;padding:0;border-radius:19px;cursor:grab;touch-action:none;transition:box-shadow .18s ease,background .18s ease}
-.we-fab__disc>svg{width:23px;height:23px}.we-fab[data-dragging] .we-fab__disc{cursor:grabbing;box-shadow:0 20px 48px #0004}
+.we-fab .we-fab__disc{border-radius:50%;border:0;background:transparent;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+.we-fab .we-fab__disc>.we-vinyl{width:52px;height:52px;pointer-events:none}
+.we-fab .we-fab__disc:hover>.we-vinyl{box-shadow:0 8px 22px #0008,inset 0 0 0 1px #ffffff38}
+.we-fab[data-dragging] .we-fab__disc{cursor:grabbing;box-shadow:0 20px 48px #0004}
 .we-fab__status{position:absolute;right:8px;bottom:8px;width:5px;height:5px;border-radius:50%;background:var(--we-mini-muted)}
 .we-fab[data-playing=true] .we-fab__status{background:#34c77c;box-shadow:0 0 0 3px #34c77c18}
 .we-fab button:focus-visible{outline:3px solid #3989ff;outline-offset:3px}
