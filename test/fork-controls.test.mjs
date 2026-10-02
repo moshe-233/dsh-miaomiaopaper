@@ -86,6 +86,17 @@ test('FAB coordinate clamps and keyboard editing guard cover every editable shap
   assert.equal(c.forkEditableTarget({tagName:'SPAN',closest:()=>({})}),true);
   assert.equal(c.forkEditableTarget({tagName:'BUTTON',closest:()=>null}),false);
 });
+test('dragged FAB panel fits the available side of the viewport',()=>{
+  const c=context();
+  for(const height of [200,480,842,1080])for(const ratio of [0,.25,.4,.5,.6,.75,1]){
+    const top=c.fabTop({fabPosition:'bottom-right',fabSnapY:ratio},height);
+    const max=c.fabPanelMaxHeight(top,height);
+    assert.ok(max>=0);
+    if(top>height/2)assert.ok(top-10-max>=12);
+    else assert.ok(top+62+max<=height-12);
+  }
+  assert.equal(c.fabPanelMaxHeight(310,842),458);
+});
 test('FAB mounts only when enabled and cleans every global listener; shortcuts ignore typing',()=>{
   const events=new Map(),effects=[],refs=[];let next=0,play=0;
   const sel={fabEnabled:true,fabPosition:'bottom-right',fabSnapY:null,inventory:{wallpapers:[]}};
