@@ -12,12 +12,12 @@
 |---|---|
 | `npm run build` | 成功，`lib/client.js` 由源码生成 |
 | `npm run verify:all` | **退出码 0**，包含 build、verify、verify:docs、smoke |
-| 新增功能测试 | **26 个通过，0 失败**；已接入 verify 链 |
+| 新增功能测试 | **27 个通过，0 失败**；已接入 verify 链 |
 | 上游界面、schema、类型、包发布范围、路由索引等硬检查 | 完整 verify 链执行成功 |
 | 原有轮换、live、资源释放、异步身份与字体集 smoke | 完整 smoke 链执行成功 |
 | `git diff --check` | 通过 |
 
-26 个新增测试也在隔离的 Linux 暂存环境通过。该环境不是完整 checkout，不能替代 Windows 完整验证。包含拖动面板高度、默认项覆盖历史选择、迷你播放器收起/关闭/分批列表与材质回退，以及共享黑胶的播放/暂停/隐藏状态。
+27 个新增测试也在隔离的 Linux 暂存环境通过。该环境不是完整 checkout，不能替代 Windows 完整验证。包含拖动面板高度、默认项覆盖历史选择、迷你播放器收起/关闭/分批列表与材质回退，以及共享黑胶的播放/暂停/隐藏状态。
 
 ## 告警与未覆盖项
 
@@ -33,3 +33,9 @@
 - 桌面测试前备份 profile 配置，修改壁纸测试设置前另备份插件配置；仅清理本次生成的媒体。
 - Node 流式路由测试仍使用隔离临时目录，与桌面集成测试分开记录。
 - 使用及同步注意事项见 [REBUILD.md](REBUILD.md)。
+
+## 输入区按钮外观更新
+
+仅修改 ComposerCollapseButton 的呈现、专用 CSS、中英文文案和回归测试，折叠控制器不变。DSH NEXT 实机验证：按钮约 106.6×32 CSS px、文字不截断；收起后仍能找到恢复按钮；展开恢复原内联样式并保留草稿；Enter/空格可以激活。虚拟机的减少动态效果保持开启，按钮没有动画或过渡。本次没有上传测试媒体或写入壁纸设置。
+
+最新安装来源为 `miao-deploy-20261002-composer-pill/artifacts/dsh-plugin-wallpaper-engine-1.2.0.tgz`（Windows `arena-linux` 工作目录下），安装前 profile 配置与锁文件备份在该目录的 `backup/`。仍通过桌面端官方 CLI 安装，未更改原 fork 或推送远程。

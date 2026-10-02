@@ -20,6 +20,9 @@
 // ── 客户端文案（src/**）──────────────────────────────────────────────────────
 
 const WE_I18N_EN = {
+  "收起输入区": "Hide composer",
+  "展开输入区": "Show composer",
+  "当前页面没有输入区": "No composer on this page",
   "显示更多壁纸": "Show more wallpapers",
   "悬浮播放器": "Mini player",
   "点击展开，拖动调整位置": "Click to expand; drag to reposition",

@@ -34,7 +34,7 @@
 
 ## 验证
 
-- Windows 完整 `npm run verify:all` 退出码 0，26 个 fork 测试通过；保留原有 warn-only 告警和平台跳过项，见 [VALIDATION.md](VALIDATION.md)。
+- Windows 完整 `npm run verify:all` 退出码 0，27 个 fork 测试通过；保留原有 warn-only 告警和平台跳过项，见 [VALIDATION.md](VALIDATION.md)。
 - DSH NEXT 真实页面验证：默认项覆盖另一张有效的历史壁纸；设置/取消默认按钮；壁纸库开关；播放/暂停；列表选片；收起与关闭的区别。
 - 真实鼠标拖动到上/下半区：842px 高视口内，列表边界分别为约 372.8–830 和 12–469.2，均未越界。
 - 验证了输入区快捷键避让、Esc、主题材质变化、减少动态效果；观察窗口内未捕获到插件运行异常，native phase 为 `ready`。
@@ -50,7 +50,7 @@
 本次备份与本地安装源：
 
 ```text
-C:\Users\Administrator\Desktop\code\arena-linux\miao-deploy-20261002-vinyl
+C:\Users\Administrator\Desktop\code\arena-linux\miao-deploy-20261002-composer-pill
 ```
 
 最终依赖指向 `artifacts/dsh-plugin-wallpaper-engine-1.2.0.tgz`，由桌面端官方 CLI 安装。请保留该目录用于后续修复/重装。`backup/` 中包含安装前 profile 配置、锁文件和壁纸配置，不要公开上传备份。
@@ -70,3 +70,7 @@ C:\Users\Administrator\Desktop\code\arena-linux\miao-deploy-20261002-vinyl
 没有修改系统开关，也没有在源码中移除减少动态效果规则。此次在真实桌面渲染器里临时模拟 `no-preference`：实测两处 CSS transform 随时间变化，暂停后稳定，恢复后继续变化；也验证了关闭悬浮窗、真实鼠标拖动及 `reduce` 模式停止动画。模拟在测试结束时清除，不能将其当作系统设置已经关闭。
 
 本轮临时 3 个媒体已清理，原有 9 项保留；壁纸设置恢复，调试端口关闭，桌面端恢复正常启动。
+
+## 输入区开关外观
+
+后续安装更新了左下角输入区折叠按钮：专用输入区 SVG 图标、收起/展开文案、收起后的蓝色恢复状态、键盘焦点与明暗配色。折叠控制器、黑胶旋转规则、默认壁纸和迷你播放器逻辑均保持不变；按钮不增加动画。验证结果见 [VALIDATION.md](VALIDATION.md)。

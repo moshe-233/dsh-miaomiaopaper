@@ -58,6 +58,20 @@ const READABILITY_FLOOR_DARK = 0.59;
 
 // ── Styles ──────────────────────────────────────────────────────────────────
 const CSS = `
+/* Sidebar composer action: a quiet, labelled control with no motion. */
+button.we-composer-toggle{display:inline-flex;align-items:center;justify-content:center;gap:7px;box-sizing:border-box;min-height:32px;max-width:100%;padding:6px 10px;border:1px solid #33415520;border-radius:11px;background:#f3f5f8;color:#566174;font:500 12px/18px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer;box-shadow:inset 0 1px 0 #ffffffb3;-webkit-app-region:no-drag}
+button.we-composer-toggle:hover:not(:disabled){background:#e9edf4;border-color:#33415536;color:#24364c}
+button.we-composer-toggle[data-collapsed=true]{background:#eaf2ff;border-color:#377ee842;color:#205eb5}
+button.we-composer-toggle[data-collapsed=true]:hover:not(:disabled){background:#deebff;border-color:#377ee877}
+button.we-composer-toggle:focus-visible{outline:2px solid #3989ff;outline-offset:3px}
+button.we-composer-toggle:disabled{cursor:default;color:#929aa7;border-color:#33415512;box-shadow:none}
+.we-composer-toggle__icon{flex:0 0 18px;pointer-events:none}.we-composer-toggle__label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+body[data-ds-dark-theme] button.we-composer-toggle{background:#252c37;border-color:#ffffff1f;color:#c2cbda;box-shadow:inset 0 1px 0 #ffffff08}
+body[data-ds-dark-theme] button.we-composer-toggle:hover:not(:disabled){background:#303b4b;border-color:#ffffff36;color:#edf3ff}
+body[data-ds-dark-theme] button.we-composer-toggle[data-collapsed=true]{background:#203853;border-color:#71aaff55;color:#b3d5ff}
+body[data-ds-dark-theme] button.we-composer-toggle[data-collapsed=true]:hover:not(:disabled){background:#294567;border-color:#71aaff80}
+body[data-ds-dark-theme] button.we-composer-toggle:disabled{color:#818c9d}
+@media(forced-colors:active){button.we-composer-toggle{border:1px solid ButtonText;background:ButtonFace;color:ButtonText}button.we-composer-toggle[data-collapsed=true]{border-color:Highlight;color:Highlight}}
 /* A self-contained glass surface: host theme wins over the OS appearance. */
 .we-fab{--we-mini-glass:rgba(250,251,255,.78);--we-mini-solid:#f6f7fb;--we-mini-ink:#20232c;--we-mini-muted:#626774;--we-mini-line:rgba(35,45,65,.12);--we-mini-hover:rgba(40,55,85,.07);position:fixed;z-index:2147483000;font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--we-mini-ink);-webkit-app-region:no-drag}
 body[data-ds-dark-theme] .we-fab{--we-mini-glass:rgba(29,32,40,.82);--we-mini-solid:#23262f;--we-mini-ink:#f3f5fa;--we-mini-muted:#b0b7c6;--we-mini-line:rgba(230,237,255,.14);--we-mini-hover:rgba(235,240,255,.09)}

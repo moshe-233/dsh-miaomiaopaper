@@ -172,3 +172,18 @@ test('library and floating launcher share the original paused/resumable vinyl co
   assert.ok(css.includes('.we-vinyl { animation: none; }'));
   assert.ok(css.includes('.we-fab .we-fab__disc>.we-vinyl{width:52px;height:52px;pointer-events:none}'));
 });
+
+
+test('composer pill labels its action and restore state without changing controller behavior',()=>{
+  let collapsed=false,available=true,toggles=0;
+  const c=context({useWeLocale:()=>{},useStore:()=>{},weT:s=>s,
+    React:{createElement:(type,props,...children)=>({type,props,children})},
+    controller:{available:()=>available,collapsed:()=>collapsed,toggle:()=>{collapsed=!collapsed;toggles++;}}});
+  let b=c.ComposerCollapseButton();assert.equal(b.props.disabled,true);assert.equal(b.props.title,'当前页面没有输入区');
+  vm.runInContext('composerController=controller',c);
+  b=c.ComposerCollapseButton();assert.equal(b.props.className,'we-composer-toggle');assert.equal(b.props['aria-label'],'收起输入区');assert.equal(b.props['aria-expanded'],true);
+  assert.equal(b.children[0].type,'svg');assert.equal(b.children[0].props['aria-hidden'],true);
+  b.props.onClick();b=c.ComposerCollapseButton();assert.equal(toggles,1);assert.equal(b.props['aria-label'],'展开输入区');assert.equal(b.props['data-collapsed'],'true');assert.equal(b.props['aria-expanded'],false);
+  b.props.onClick();assert.equal(collapsed,false);assert.equal(toggles,2);
+  available=false;b=c.ComposerCollapseButton();assert.equal(b.props.disabled,true);assert.equal(b.props['aria-expanded'],undefined);
+});

@@ -165,9 +165,19 @@ let composerController = null;
 function ComposerCollapseButton() {
   useWeLocale(); useStore();
   const c = composerController;
-  return React.createElement('button', {type:'button', className:'we-picker__btn', disabled:!c || !c.available(),
-    'aria-expanded':!c || !c.collapsed(), title:weT('收起或展开输入区'), 'aria-label':weT('收起或展开输入区'),
-    onClick:() => { if (c) c.toggle(); }}, c && c.collapsed() ? '▴' : '▾');
+  const available = Boolean(c && c.available());
+  const collapsed = Boolean(c && c.collapsed());
+  const label = collapsed ? weT('展开输入区') : weT('收起输入区');
+  return React.createElement('button', {type:'button', className:'we-composer-toggle', disabled:!available,
+    'data-collapsed':collapsed ? 'true' : 'false',
+    'aria-expanded':available ? !collapsed : undefined,
+    title:available ? weT('收起或展开输入区') : weT('当前页面没有输入区'), 'aria-label':label,
+    onClick:() => { if (c) c.toggle(); }},
+    React.createElement('svg',{className:'we-composer-toggle__icon',viewBox:'0 0 24 24',width:18,height:18,fill:'none',stroke:'currentColor',strokeWidth:1.6,strokeLinecap:'round',strokeLinejoin:'round','aria-hidden':true},
+      React.createElement('rect',{x:3,y:3,width:18,height:18,rx:4}),
+      React.createElement('path',{d:'M3 15h18'}),
+      React.createElement('path',{d:collapsed ? 'm9 10 3-3 3 3' : 'm9 7 3 3 3-3'})),
+    React.createElement('span',{className:'we-composer-toggle__label'},label));
 }
 function installComposerCollapse(ctx) {
   if (!ctx.slots || typeof ctx.slots.inject !== 'function' || typeof document.querySelector !== 'function') return;
