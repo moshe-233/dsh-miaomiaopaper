@@ -124,6 +124,8 @@ function declaredValueExports(src) {
 // ── 必需字段清单：**钉住的东西**。每条附上"为什么必需"（依据见括注的代码处）──
 
 const WALLPAPER_REQUIRED = [
+  { name: 'source', why: 'origin filter; both inventory producers assign it' },
+  { name: 'legacyId', why: 'unambiguous legacy drop-in reference; both producers assign it' },
   { name: 'id', why: 'entry key; playlist wallpaperIds resolve against it (buildInventory)' },
   { name: 'title', why: 'picker label; both construction sites assign it (buildInventory)' },
   { name: 'type', why: 'drives every capability branch (buildInventory)' },

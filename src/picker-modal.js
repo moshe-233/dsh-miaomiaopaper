@@ -37,7 +37,7 @@
  */
 
   function renderPickerModal(ctx) {
-    const { sel, closePicker, current, playbackLive, playableList, hiddenList, hiddenPageView, normalPage, cdMode, pagerRow, query, basePlayable, ratingCounts, typeCounts, armedConfirm, onArmConfirm, onDisarmConfirm, onClear, onRatingFilterChange, onTypeFilterChange, onShowNormalView, onShowHiddenView, onHiddenPagePrev, onHiddenPageNext, onToggleBatchMode, onArmBatchHide, onBatchHide, onBatchCancel, onSearchInput, onPickCard, onNormalPagePrev, onNormalPageNext } = ctx;
+    const { sel, closePicker, current, playbackLive, playableList, hiddenList, hiddenPageView, normalPage, cdMode, pagerRow, query, basePlayable, ratingCounts, typeCounts, armedConfirm, onArmConfirm, onDisarmConfirm, onClear, onRatingFilterChange, onTypeFilterChange, onSourceFilterChange, onShowNormalView, onShowHiddenView, onHiddenPagePrev, onHiddenPageNext, onToggleBatchMode, onArmBatchHide, onBatchHide, onBatchCancel, onSearchInput, onPickCard, onNormalPagePrev, onNormalPageNext } = ctx;
   // 草稿模式（轮播编辑器的「选择壁纸」下钻，pickerDraft）：点卡片 = 加入/移出
   // 草稿（onPickCard 在组件侧路由），本形态下隐藏页 / 批量 / 关闭卡都无意义、整体收起，
   // 顶部换成已选计数提示。draft=false（普通下钻）时每一处都走原分支，逐字不受影响。
@@ -178,6 +178,14 @@
                   weT("隐藏选中的 {n} 张壁纸？可在「已隐藏」中随时恢复。", { n: sel.batchSelected.length }),
                   onBatchHide, onDisarmConfirm),
                 React.createElement("div", { className: "we-picker__row we-picker__filter-row" },
+                  React.createElement("select", {
+                    className: "we-picker__playlist-select", value: sel.sourceFilter || "all",
+                    "aria-label": weT("壁纸来源"), onChange: onSourceFilterChange,
+                  },
+                    React.createElement("option", { value: "all" }, weT("全部来源")),
+                    React.createElement("option", { value: "workshop" }, weT("WE 壁纸库")),
+                    React.createElement("option", { value: "local" }, weT("本地媒体")),
+                  ),
                   // 标题搜索：几百上千张壁纸时最快的定位方式。输入即过滤
                   // （重置到第 1 页），与分级/类型过滤叠加。
                   React.createElement("input", {
@@ -204,7 +212,8 @@
                   React.createElement("span", { className: "we-picker__hint we-picker__label" }, weT("类型")),
                   React.createElement("select", {
                     className: "we-picker__playlist-select",
-                    value: sel.typeFilter,
+                    value: sel.pickerDraft && sel.editing && sel.editing.videoOnly ? "video" : sel.typeFilter,
+                    disabled: Boolean(sel.pickerDraft && sel.editing && sel.editing.videoOnly),
                     onChange: onTypeFilterChange,
                     "aria-label": weT("类型"),
                     title: weT("按壁纸类型过滤（只筛列表与轮播候选，不打断正在应用的壁纸）"),

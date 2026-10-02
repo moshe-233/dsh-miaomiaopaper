@@ -24,6 +24,10 @@ import type { Context } from '@deepseek-ai/cordis';
 export interface WallpaperDescriptor {
   /** Entry id: Workshop id, project folder name, or `up-*` / `up-dir-*` for uploads. */
   id: string;
+  /** Origin bucket; workshop includes the Wallpaper Engine library. */
+  source: 'workshop' | 'local';
+  /** Unambiguous old fork drop-in ID, otherwise null; never used as a delete path. */
+  legacyId: string | null;
   /** Display title: project.json title, uploads/.meta.json title, or the id as fallback. */
   title: string;
   /** Kind assigned by the enumerator: 'scene' | 'video' | 'web' | 'application',

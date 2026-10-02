@@ -411,7 +411,7 @@ function applySelection(id, opts) {
   // 只有**用户点击**（fromManual）才清失败记忆：手动点开 = 想看它 live，重试一次实时渲染
   //（真失败会自动回退并重新记账）。启动恢复 / revalidate / 轮换提交都不清 —— 记忆的
   // 语义是「这张 live 走不通」，凡路过就清等于没记忆（smoke L2 钉住这条）。
-  if (opts && opts.fromManual) clearLiveFailure(id);
+  if (opts && opts.fromManual) { startupWallpaperResolved = true; clearLiveFailure(id); }
   // GPU 抓帧回填的目标壁纸随切换作废（新壁纸的 live 首帧会重新调度）。
   cancelLiveFrameBackfill();
   // 延迟期那个**正在预热**的渲染页随**真正的切换**作废：它是「正在跑的渲染页」而不是普通元素，
@@ -427,6 +427,7 @@ function applySelection(id, opts) {
   if (selection.id !== (id || "")) cancelLiveMount("selection");
   // 手动切换不走渐变 → 立即放行轮换音频闸（轮换提交由旧层退场放行）。
   if (!opts || !opts.fromRotation) releaseRotationAudioGate();
+  rememberVideoSelection(id);
   selection.id = id || "";
   persistSelection();
   if (!selection.id) {

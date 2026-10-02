@@ -450,9 +450,10 @@ function renderConfirmRow(armed, token, question, onConfirm, onDisarm) {
 function hostFailureReason(res) {
   if (!res || !res.status) return weT("宿主不可达（请求未完成）");
   const data = res.data;
-  return (data && data.error) || weT("宿主返回 {status}", { status: res.status });
+  return (data && data.error && weT(data.error, { limit: data.limit })) || weT("宿主返回 {status}", { status: res.status });
 }
 let inventorySeq = 0;
+let startupWallpaperResolved = false;
 async function loadInventory() {
   const seq = ++inventorySeq;
   setTransient("loading", true);
@@ -491,6 +492,18 @@ async function loadInventory() {
     };
   }
   if (seq !== inventorySeq) return; // superseded by a newer loadInventory()
+  let startupId = "";
+  if (!next.error) {
+    const migrated = migrateLocalReferences(selection, next.wallpapers);
+    for (const key of ["defaultId", "hiddenIds", "rotationGroups"]) {
+      if (JSON.stringify(migrated[key]) !== JSON.stringify(selection[key])) setSetting(key, migrated[key]);
+    }
+    if (migrated.id !== selection.id) startupId = migrated.id;
+    if (!startupWallpaperResolved) {
+      startupWallpaperResolved = true;
+      if (!startupId) startupId = startupWallpaperId(selection, next.wallpapers);
+    }
+  }
   setTransient("inventory", next);
   setTransient("loading", false);
   setTransient("loaded", true);
@@ -524,7 +537,7 @@ async function loadInventory() {
       const usable = firstUsableGroup();
       if (usable) selection.rotationGroupId = usable.id;
       else selection.rotationEnabled = false;
-    } else if (rotationCandidates().length < 2) {
+    } else if (rotationCandidates().length < rotationMinimum(activeRotationGroup())) {
       const usable = firstUsableGroup();
       if (usable && usable.id !== selection.rotationGroupId) selection.rotationGroupId = usable.id;
       else if (!usable) selection.rotationEnabled = false;
@@ -535,6 +548,7 @@ async function loadInventory() {
   // Re-validate the selection against the refreshed inventory + filters (also
   // covers the rating/type filters): drop vanished/no-longer-matching
   // selections, then restore rotation state.
+  if (startupId) applySelection(startupId);
   revalidateSelection();
   scheduleSceneVideoResync();
 }
@@ -612,7 +626,8 @@ function revalidateSelection() {
   // 分级拦这些真原因照旧换台。
   const typeOnlyExcluded = keepCurrent && Boolean(selection.id)
     && !isHiddenWallpaper(selection.id, selection.hiddenIds)
-    && Boolean(activeRotationGroup()) && activeRotationGroup().wallpaperIds.indexOf(selection.id) >= 0;
+    && Boolean(activeRotationGroup()) && (!activeRotationGroup().videoOnly || cur.type === "video")
+    && activeRotationGroup().wallpaperIds.indexOf(selection.id) >= 0;
   if (selection.rotationEnabled && selection.id && !typeOnlyExcluded
     && !rotationCandidates().some((w) => w.id === selection.id)) {
     const first = rotationCandidates()[0];
@@ -654,7 +669,7 @@ function groupWallpapers(group) {
   return group.wallpaperIds
     .map((id) => byId.get(id))
     .filter((w) => w
-      && isRotatableWallpaper(w, selection.contentRatingFilter, selection.typeFilter)
+      && isRotatableWallpaper(w, selection.contentRatingFilter, group.videoOnly ? "video" : selection.typeFilter)
       && !isHiddenWallpaper(w.id, selection.hiddenIds));
 }
 
@@ -663,7 +678,7 @@ function rotationCandidates() {
 }
 
 function firstUsableGroup() {
-  return selection.rotationGroups.find((g) => groupWallpapers(g).length >= 2) || null;
+  return selection.rotationGroups.find((g) => groupWallpapers(g).length >= rotationMinimum(g)) || null;
 }
 
 // First run / upgrade path: turn the first playable Wallpaper Engine playlist
@@ -743,7 +758,7 @@ function clearRotationTimer() {
 
 function syncRotationTimer() {
   clearRotationTimer();
-  if (!selection.rotationEnabled || !selection.id) return;
+  if (!selection.rotationEnabled || !selection.id || activeVideoPlaylist()) return;
   if (rotationCandidates().length < 2) return;
   if (typeof window === "undefined" || typeof window.setTimeout !== "function") return;
   const group = activeRotationGroup();
@@ -1068,7 +1083,7 @@ function commitRotationSwitch(prep) {
   prep.staged = null;
   const w = wallpaperById().get(prep.id);
   const valid = selection.rotationEnabled && selection.id === prep.fromId
-    && w && isRotatableWallpaper(w, selection.contentRatingFilter, selection.typeFilter)
+    && w && isRotatableWallpaper(w, selection.contentRatingFilter, activeVideoPlaylist() ? "video" : selection.typeFilter)
     && !isHiddenWallpaper(w.id, selection.hiddenIds);
   liveLog("rotation-commit", "wid=" + prep.id + " from=" + prep.fromId + " kind=" + (prep.kind || "-")
     + " valid=" + valid + " " + liveStateBrief());
@@ -1132,9 +1147,10 @@ function saveEditingGroup() {
     id: draft.id,
     name: typeof draft.name === "string" && draft.name.trim() ? draft.name.trim() : weT("轮播列表"),
     interval: clampNum(draft.interval, 1, 1440, DEFAULTS.rotationInterval),
-    order: draft.order === "random" ? "random" : "sequence",
+    videoOnly: draft.videoOnly === true,
+    order: draft.order === "random" ? "random" : (draft.videoOnly && draft.order === "loop" ? "loop" : "sequence"),
     wallpaperIds: Array.isArray(draft.wallpaperIds)
-      ? draft.wallpaperIds.filter((x) => typeof x === "string" && x)
+      ? draft.wallpaperIds.filter((x) => typeof x === "string" && x && (!draft.videoOnly || wallpaperById().get(x)?.type === "video"))
       : [],
   };
   if (idx >= 0) selection.rotationGroups[idx] = cleaned;
@@ -1179,7 +1195,7 @@ function deleteGroup(id) {
 
 function importPlaylistIntoDraft(playlist) {
   if (!selection.editing || !playlist || !Array.isArray(playlist.wallpaperIds)) return;
-  selection.editing.wallpaperIds = playlist.wallpaperIds.slice();
+  selection.editing.wallpaperIds = playlist.wallpaperIds.filter((id) => !selection.editing.videoOnly || wallpaperById().get(id)?.type === "video");
   emit();
 }
 
@@ -2360,6 +2376,7 @@ function applyVideoPlayback(video) {
   if (!video) return;
   watchVideoState(video);
   weApplyAudio(video);
+  if (syncVideoPlaylistPlayback(video)) return;
   if (!isEffectivelyPlaying()) {
     try { video.pause(); } catch { /* ignore */ }
     syncVideoState(video);
@@ -2725,6 +2742,7 @@ function onTogglePlay() {
     const layer = document.getElementById(LAYER_ID);
     const v = layer && layer.querySelector("video");
     if (v && v.dataset) delete v.dataset.wePlayRefused; // 清掉拒绝标记才能重试
+    if (v && v.ended && activeVideoPlaylist()) { restartWallpaperVideo(); return; }
     setTransient("videoError", "");
     emit(); // syncLayers → applyVideoPlayback 会重新 play()
     return;
@@ -2768,6 +2786,7 @@ function onVideoVolume(pct, live) {
   if (!live) emit();
 }
 function onClear() {
+  startupWallpaperResolved = true;
   // 清掉壁纸 = 这张的属性面板也失去对象：顺手把「壁纸属性」收起来。不收的话开关会
   // 「挂着」，下次随便选一张带属性的壁纸时面板会**自动弹开**（用户没点过它）。
   propsPanelOpen = false;
@@ -2823,6 +2842,7 @@ function onToggleRotation() {
 // 「下一张」（快捷面板）：轮播开着按活动列表推进、关着按可播放网格推进；
 // 锚点是【实际显示】的那张（与轮换同一锚点判定，避免 A→B→A 乒乓）。
 function onNextWallpaper() {
+  if (activeVideoPlaylist()) { stepWallpaperVideo(1); return; }
   const list = selection.rotationEnabled ? rotationCandidates() : playableInventory();
   if (list.length < 2) return;
   const anchor = rotationAnchorWallpaper();
@@ -2895,6 +2915,12 @@ function WallpaperPicker() {
   const onRatingFilterChange = (e) => {
     setSetting("contentRatingFilter", e.target.value);
     revalidateSelection();
+  };
+  const onSourceFilterChange = (e) => {
+    setSetting("sourceFilter", e.target.value);
+    setTransient("page", 0);
+    setTransient("editorPage", 0);
+    emit();
   };
   const onTypeFilterChange = (e) => {
     setSetting("typeFilter", e.target.value);
@@ -3426,7 +3452,8 @@ const officialColorOf = (tokens) => {
     hiddenIds: selection.hiddenIds,
     search: sel.search,
     ratingFilter: sel.contentRatingFilter,
-    typeFilter: sel.typeFilter,
+    typeFilter: sel.pickerDraft && sel.editing && sel.editing.videoOnly ? "video" : sel.typeFilter,
+    sourceFilter: sel.sourceFilter,
     page: sel.page,
     hiddenPage: sel.hiddenPage,
     editorPage: sel.editorPage,
@@ -3583,7 +3610,7 @@ const officialColorOf = (tokens) => {
         sel, closePicker, current, playbackLive, playableList, hiddenList, hiddenPageView, normalPage,
         cdMode, pagerRow, query, basePlayable, ratingCounts, typeCounts,
         armedConfirm: sel.armedConfirm, onArmConfirm: armConfirm, onDisarmConfirm: disarmConfirm,
-        onClear, onRatingFilterChange, onTypeFilterChange,
+        onClear, onRatingFilterChange, onTypeFilterChange, onSourceFilterChange,
         onShowNormalView, onShowHiddenView, onHiddenPagePrev, onHiddenPageNext,
         onToggleBatchMode, onArmBatchHide, onBatchHide, onBatchCancel, onSearchInput, onPickCard,
         onNormalPagePrev, onNormalPageNext,
@@ -4452,6 +4479,10 @@ function apply(ctx) {
     ctx.effect(() => installSidebarRight(ctx) || undefined);
   }
 
+  if (ctx.effect && typeof document !== "undefined") {
+    ctx.effect(() => installComposerCollapse(ctx) || undefined);
+  }
+
   // 2d. 壁纸侧栏快捷键（官方桌面默认 Cmd/Ctrl+Alt+W）：注册进宿主的 shortcuts 服务
   //     （可选服务 + 短轮询，缺服务安静跳过），命令在宿主快捷键编辑器里可改键。
   if (ctx.effect && typeof document !== "undefined") {
@@ -4473,7 +4504,7 @@ function apply(ctx) {
       }
       if (!host) return undefined;
       const root = ReactDOM.createRoot(host);
-      root.render(React.createElement(RopeDock, null));
+      root.render(React.createElement(React.Fragment, null, React.createElement(RopeDock, null), React.createElement(FloatingWallpaperControl, null)));
       return () => {
         try { root.unmount(); } catch { /* already gone */ }
         if (host.parentNode) host.parentNode.removeChild(host);

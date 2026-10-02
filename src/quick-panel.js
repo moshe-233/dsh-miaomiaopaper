@@ -157,7 +157,7 @@
     // 上游档（设置页的类型过滤，持久化）：它先筛一遍候选，侧栏这一档再筛 ——
     // 空列表时若它不是「全部」，提示要说清是哪一层筛掉的（否则用户以为库里没有）。
     const upstreamType = String(sel.typeFilter || "all");
-    const playable = playableInventory();
+    const playable = playableInventory().filter((w) => matchesSourceFilter(w, sel.sourceFilter));
     const filtered = playable.filter((w) => {
       if (typeFilter !== "all" && w.type !== typeFilter) return false;
       if (q && String(w.title || "").toLowerCase().indexOf(q) === -1) return false;
@@ -286,7 +286,7 @@
             React.createElement("option", { value: "" }, weT(groups.length ? "— 选择轮播列表 —" : "— 暂无轮播列表 —")),
             ...groups.map((g) => React.createElement("option", {
               key: g.id, value: g.id,
-            }, weT("{name}（{count} 可播放 · {interval} 分钟）", {
+            }, g.videoOnly ? weT("{name}（{count} 视频 · 播完切换）", { name: g.name, count: groupWallpapers(g).length }) : weT("{name}（{count} 可播放 · {interval} 分钟）", {
               name: g.name, count: groupWallpapers(g).length, interval: g.interval,
             }))),
           ),
@@ -298,7 +298,7 @@
           }, weT("下一张")),
         ),
         switchRow(weT("自动轮播"), sel.rotationEnabled === true, () => onToggleRotation(), {
-          hint: weT(groups.length ? "按所选列表定时切换" : "先到设置页新建一个轮播列表"),
+          hint: sel.rotationEnabled && groups.some((g) => g.id === sel.rotationGroupId && g.videoOnly) ? weT("仅视频列表：播完再切换") : weT(groups.length ? "按所选列表定时切换" : "先到设置页新建一个轮播列表"),
         }),
       ),
       // ── ③ 页签栏（在「轮播」之下；当前壁纸与轮播三档都显示）──

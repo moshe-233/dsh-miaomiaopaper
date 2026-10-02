@@ -66,6 +66,39 @@ function isDirWallpaper(w) {
   return Boolean(w && w.id && w.id.indexOf("up-dir-") === 0);
 }
 
+function wallpaperSource(w) {
+  if (w && (w.source === "local" || w.source === "workshop")) return w.source;
+  return w && (w.local === true || /^(up-|file-|local-)/.test(w.id || "")) ? "local" : "workshop";
+}
+function matchesSourceFilter(w, filter) {
+  return !filter || filter === "all" || wallpaperSource(w) === filter;
+}
+
+/** Non-destructive ID migration. Ambiguous aliases are deliberately not guessed. */
+function migrateLocalReferences(settings, wallpapers) {
+  const ids = new Set(wallpapers.map((w) => w.id));
+  const aliases = new Map();
+  for (const w of wallpapers) {
+    if (!w.legacyId || ids.has(w.legacyId)) continue;
+    aliases.set(w.legacyId, aliases.has(w.legacyId) ? null : w.id);
+  }
+  const remap = (id) => aliases.get(id) || id;
+  return {
+    id: remap(settings.id), defaultId: remap(settings.defaultId),
+    hiddenIds: (settings.hiddenIds || []).map(remap),
+    rotationGroups: (settings.rotationGroups || []).map((g) => Object.assign({}, g, {
+      wallpaperIds: (g.wallpaperIds || []).map(remap),
+    })),
+  };
+}
+
+/** Startup fallback never overrides a valid current item or a hidden/restricted default. */
+function startupWallpaperId(settings, wallpapers) {
+  if (wallpapers.some((w) => w.id === settings.id && keepPlayingWallpaper(w, settings.contentRatingFilter))) return "";
+  const w = wallpapers.find((item) => item.id === settings.defaultId);
+  return w && keepPlayingWallpaper(w, settings.contentRatingFilter) && !isHiddenWallpaper(w.id, settings.hiddenIds) ? w.id : "";
+}
+
 function ratingOf(w) {
   const rating = typeof w.contentrating === "string" ? w.contentrating.trim() : "";
   // 自上传壁纸没有标注分级时按 Everyone 处理（#84）。用户自己的文件不该被默认的
@@ -74,7 +107,7 @@ function ratingOf(w) {
   // 上传接口自动应用新 id 时 applySelection 直接拒绝，壁纸层空白、播放按钮因
   // !sel.url 变灰 —— 表现就是「视频壁纸不能播放，也没有继续按钮」。显式写了
   // G / PG13 / R 的照读（#77），成人内容依然会被过滤。
-  if (!rating) return isUploadedWallpaper(w) ? "everyone" : "unrated";
+  if (!rating) return wallpaperSource(w) === "local" ? "everyone" : "unrated";
   if (/^(everyone|general|g)$/i.test(rating)) return "everyone";
   if (PG13_RATING_PATTERN.test(rating)) return "pg13";
   if (ADULT_RATING_PATTERN.test(rating)) return "mature";
@@ -138,7 +171,7 @@ function hiddenWallpapers(wallpapers, hiddenIds) {
 }
 
 function pickerModel(input) {
-  const list = input.wallpapers || [];
+  const list = (input.wallpapers || []).filter((w) => matchesSourceFilter(w, input.sourceFilter));
   const hiddenIds = input.hiddenIds || [];
   const ratingFilter = input.ratingFilter;
   const typeFilter = input.typeFilter;

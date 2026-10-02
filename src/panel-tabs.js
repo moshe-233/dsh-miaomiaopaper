@@ -124,6 +124,12 @@
             title: weT("清除当前壁纸（停止播放，回到无壁纸状态）"),
           }, weT("清除")),
           React.createElement("button", {
+            className: "we-picker__btn", type: "button", disabled: !sel.id && !sel.defaultId,
+            "aria-pressed": Boolean(sel.id && sel.defaultId === sel.id),
+            title: weT("没有有效的上次壁纸时才应用，不覆盖当前播放"),
+            onClick: () => { setSetting("defaultId", !sel.id || sel.defaultId === sel.id ? "" : sel.id); emit(); },
+          }, sel.defaultId && (!sel.id || sel.defaultId === sel.id) ? weT("取消启动兜底") : weT("设为启动兜底")),
+          React.createElement("button", {
             className: "we-picker__btn", type: "button",
             onClick: onRefresh, disabled: sel.loading,
           }, sel.loading ? weT("刷新中…") : weT("刷新")),
@@ -200,7 +206,7 @@
         React.createElement("option", { value: "" }, groups.length ? weT("— 选择轮播列表 —") : weT("— 暂无轮播列表 —")),
         ...groups.map((g) => React.createElement("option", {
           key: g.id, value: g.id,
-        }, weT("{name}（{count} 可播放 · {interval} 分钟）", { name: g.name, count: groupWallpapers(g).length, interval: g.interval }))),
+        }, g.videoOnly ? weT("{name}（{count} 视频 · 播完切换）", { name: g.name, count: groupWallpapers(g).length }) : weT("{name}（{count} 可播放 · {interval} 分钟）", { name: g.name, count: groupWallpapers(g).length, interval: g.interval }))),
         ),
         React.createElement("button", {
           className: "we-picker__btn", type: "button",
@@ -241,6 +247,7 @@
           React.createElement("select", {
             className: "we-picker__rotation-interval",
             value: String(editing.interval),
+            disabled: Boolean(editing.videoOnly),
             onChange: (e) => { editing.interval = clampNum(Number(e.target.value), 1, 1440, DEFAULTS.rotationInterval); emit(); },
             "aria-label": weT("轮播间隔"),
           },
@@ -256,8 +263,13 @@
           },
           React.createElement("option", { value: "sequence" }, weT("顺序", null, "seq")),
           React.createElement("option", { value: "random" }, weT("随机")),
+          editing.videoOnly && React.createElement("option", { value: "loop" }, weT("单曲循环")),
           ),
         ),
+        React.createElement("label", { className: "we-picker__row" },
+          React.createElement("input", { type: "checkbox", checked: Boolean(editing.videoOnly),
+            onChange: (e) => { editing.videoOnly = e.target.checked; if (!editing.videoOnly && editing.order === "loop") editing.order = "sequence"; emit(); } }),
+          weT("仅视频列表：播完再切换")),
         // 选片走**页内下钻**（与「选择壁纸」同一套库视图）：点按钮进库浏览，
         // 卡片点击 = 加入/移出草稿（pickerDraft），顶部提示已选数；「返回」回编辑器。
         // 这里**只有一行入口按钮、没有内联网格**：大库在 24px 缩略图里翻页选片不可用，
@@ -307,15 +319,15 @@
         ctlText(weT("自动轮转"),
           !sel.rotationGroupId
             ? weT("请先选择或新建一个轮播列表")
-            : playableCount < 2
-              ? weT("当前列表至少需要 2 个可播放壁纸")
-              : weT("每 {min} 分钟切换一次", { min: group ? group.interval : DEFAULTS.rotationInterval })),
+            : playableCount < rotationMinimum(group)
+              ? (group && group.videoOnly ? weT("当前列表至少需要 1 个可播放视频") : weT("当前列表至少需要 2 个可播放壁纸"))
+              : group && group.videoOnly ? weT("仅视频列表：播完再切换") : weT("每 {min} 分钟切换一次", { min: group ? group.interval : DEFAULTS.rotationInterval })),
         React.createElement("div", { className: "we-picker__ctl-side" },
           React.createElement("select", {
             className: "we-picker__rotation-interval",
             value: String(group ? group.interval : DEFAULTS.rotationInterval),
             onChange: onGroupInterval,
-            disabled: !sel.rotationEnabled || !sel.rotationGroupId || playableCount < 2,
+            disabled: Boolean(group && group.videoOnly) || !sel.rotationEnabled || !sel.rotationGroupId || playableCount < rotationMinimum(group),
             "aria-label": weT("轮转间隔"),
           },
           ...INTERVALS.map((minutes) =>
@@ -325,11 +337,19 @@
             checked: sel.rotationEnabled,
             onChange: onToggleRotation,
             label: weT("自动轮转"),
-            disabled: !sel.rotationGroupId || playableCount < 2,
+            disabled: !sel.rotationGroupId || playableCount < rotationMinimum(group),
             title: weT("按列表顺序/随机自动切换壁纸"),
           }),
         ),
       ),
+      ),
+      group && group.videoOnly && React.createElement("div", { className: "we-picker__row" },
+        React.createElement("button", { className: "we-picker__btn", type: "button", disabled: !sel.rotationEnabled,
+          onClick: () => stepWallpaperVideo(-1) }, weT("上一张")),
+        React.createElement("button", { className: "we-picker__btn", type: "button", disabled: !sel.rotationEnabled,
+          onClick: onNextWallpaper }, weT("下一张")),
+        React.createElement("button", { className: "we-picker__btn", type: "button", disabled: !sel.rotationEnabled,
+          onClick: restartWallpaperVideo }, weT("从头播放")),
       ),
       // ── 自定义壁纸: local JPG/PNG/MP4 as wallpapers. Files are written by the
       //    host into its plugin-managed directory and served through the same
@@ -489,7 +509,7 @@
               count: group.wallpaperIds.length,
               playable: playableCount,
               interval: group.interval,
-              order: group.order === "random" ? weT("随机") : weT("顺序", null, "seq"),
+              order: group.order === "loop" ? weT("单曲循环") : group.order === "random" ? weT("随机") : weT("顺序", null, "seq"),
               rotating: sel.rotationEnabled ? weT(" · 自动轮转中") : "",
             })
             : weT("{count} 个可播放壁纸{rotating}", { count: playableList.length, rotating: sel.rotationEnabled ? weT(" · 自动轮转中") : "" }))),
@@ -1224,6 +1244,20 @@
   function renderAdvancedTab(ctx) {
     const { setSetting, onEdgeCompatChange, onLayoutChange, sel } = ctx;
     return React.createElement(React.Fragment, null,
+      React.createElement("div", { className: "we-picker__section" },
+        switchRow(weT("悬浮播放控制"), sel.fabEnabled, (e) => { setSetting("fabEnabled", e.target.checked); emit(); }, {
+          hint: weT("可拖至右侧；Ctrl+Alt+方向键切换，Ctrl+Alt+空格播放或暂停"),
+        }),
+        sel.fabEnabled && React.createElement("select", {
+          className: "we-picker__playlist-select", value: sel.fabPosition, "aria-label": weT("悬浮球位置"),
+          onChange: (e) => { setSetting("fabPosition", e.target.value); setSetting("fabSnapY", null); emit(); },
+        },
+          React.createElement("option", { value: "top-left" }, weT("左上角")),
+          React.createElement("option", { value: "top-right" }, weT("右上角")),
+          React.createElement("option", { value: "bottom-left" }, weT("左下角")),
+          React.createElement("option", { value: "bottom-right" }, weT("右下角")),
+        ),
+      ),
       // ── 浏览方式：紧凑 CD 架 vs 常规分页网格 ──
       React.createElement("div", { className: "we-picker__section" },
         React.createElement("div", { className: "we-picker__section-head" },

@@ -20,6 +20,30 @@
 // ── 客户端文案（src/**）──────────────────────────────────────────────────────
 
 const WE_I18N_EN = {
+  "当前列表至少需要 1 个可播放视频": "This playlist needs at least one playable video",
+  "{name}（{count} 视频 · 播完切换）": "{name} ({count} videos \u00b7 advance on end)",
+
+  "悬浮播放控制": "Floating playback controls",
+  "上一张": "Previous wallpaper",
+  "从头播放": "Restart video",
+  "收起控制面板": "Collapse controls",
+  "收起或展开输入区": "Collapse or expand composer",
+  "可拖至右侧；Ctrl+Alt+方向键切换，Ctrl+Alt+空格播放或暂停": "Drag to dock right; Ctrl+Alt+arrows to switch, Ctrl+Alt+Space to play or pause",
+  "悬浮球位置": "Floating control position",
+  "左上角": "Top left",
+  "右上角": "Top right",
+  "左下角": "Bottom left",
+  "右下角": "Bottom right",
+
+  "仅视频列表：播完再切换": "Video-only playlist: advance when playback ends",
+  "单曲循环": "Repeat one",
+  "壁纸来源": "Wallpaper source",
+  "全部来源": "All sources",
+  "WE 壁纸库": "Wallpaper Engine library",
+  "本地媒体": "Local media",
+  "没有有效的上次壁纸时才应用，不覆盖当前播放": "Used only when the previous wallpaper is unavailable; does not override playback",
+  "取消启动兜底": "Clear startup fallback",
+  "设为启动兜底": "Use as startup fallback",
   // ── src/adapter.js ──
   "自动检测": "Auto-detect",
   "原生浏览器": "Plain browser",
@@ -658,7 +682,7 @@ const WE_I18N_EN = {
 // ── 宿主文案（lib/** 里由客户端显示的那些原文）────────────────────────────────
 
 const WE_I18N_HOST_EN = {
-  "文件过大（上限 512MB）": "File too large (limit 512MB)",
+  "文件过大（上限 {limit} MiB）": "File too large (limit {limit} MiB)",
   "请输入有效的绝对路径（如 D:\\MyWallpapers 或 /data/wallpapers）": "Enter a valid absolute path (e.g. D:\\MyWallpapers or /data/wallpapers)",
   "无法在该路径创建目录（权限不足或路径被占用）": "Cannot create a directory at that path (permission denied or path in use)",
   "字体集文件必须是一个 JSON 对象": "Font set file must be a JSON object",

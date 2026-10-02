@@ -44,6 +44,10 @@ const id = pkg.name;
  * `markers` 是"结构变了就报错"的锚点 —— 缺任何一个都构建失败，避免内联悄悄变空。
  */
 const INLINE_MODULES = [
+  { file: 'src/fork-controls.js', why: 'Optional floating player and reversible official composer adapter',
+    markers: ['function FloatingWallpaperControl(', 'function createComposerController(', 'function installComposerCollapse('] },
+  { file: 'src/video-playlist.js', why: 'Video groups share upstream rotation/media lifecycle',
+    markers: ['function rotationMinimum(', 'function syncVideoPlaylistPlayback(', 'function videoPlaylistTarget('] },
   {
     // 纯数据、零依赖 ⇒ 放最前：后面任何模块都能直接读（也不可能有 TDZ 交互）。
     file: 'src/about-assets.js',

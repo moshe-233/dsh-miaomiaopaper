@@ -1163,7 +1163,7 @@ setTimeout(async () => {
     const EXPECTED_NORMAL = [
       '0:we-picker__modal 1:we-picker__modal-head 2:we-picker__modal-head-left 3:we-vinyl 3:we-vinyl--playing 3:we-vinyl--sm 4:we-vinyl__cover 5:we-vinyl__empty',
       '4:we-vinyl__hole 3:we-picker__modal-title 2:we-picker__btn 1:we-picker__modal-tabs 2:we-picker__btn 2:we-picker__tab 2:we-picker__tab--active 2:we-picker__btn',
-      '2:we-picker__tab 1:we-picker__modal-body 2:we-picker__row 3:we-picker__hint 3:we-picker__btn 2:we-picker__row 2:we-picker__filter-row 3:we-picker__text',
+      '2:we-picker__tab 1:we-picker__modal-body 2:we-picker__row 3:we-picker__hint 3:we-picker__btn 2:we-picker__row 2:we-picker__filter-row 3:we-picker__playlist-select 3:we-picker__text',
       '3:we-picker__search 3:we-picker__hint 3:we-picker__label 3:we-picker__playlist-select 3:we-picker__hint 3:we-picker__label 3:we-picker__playlist-select 2:we-picker__grid',
       '3:we-picker__card 4:we-picker__card-close 3:we-picker__card 4:we-picker__card-placeholder 4:we-picker__card-type 4:we-picker__card-title 4:we-picker__card-hide 3:we-picker__card',
       '4:we-picker__card-placeholder 4:we-picker__card-type 4:we-picker__card-title 4:we-picker__card-hide 3:we-picker__card 4:we-picker__card-placeholder 4:we-picker__card-type 4:we-picker__card-title',
@@ -1186,7 +1186,7 @@ setTimeout(async () => {
       '0:we-picker__modal 1:we-picker__modal-head 2:we-picker__modal-head-left 3:we-vinyl 3:we-vinyl--playing 3:we-vinyl--sm 4:we-vinyl__cover 5:we-vinyl__empty',
       '4:we-vinyl__hole 3:we-picker__modal-title 2:we-picker__btn 1:we-picker__modal-tabs 2:we-picker__btn 2:we-picker__tab 2:we-picker__tab--active 2:we-picker__btn',
       '2:we-picker__tab 1:we-picker__modal-body 2:we-picker__row 3:we-picker__hint 3:we-picker__btn 2:we-picker__row 2:we-picker__batch-bar 3:we-picker__hint',
-      '3:we-picker__btn 3:we-picker__btn 2:we-picker__row 2:we-picker__filter-row 3:we-picker__text 3:we-picker__search 3:we-picker__hint 3:we-picker__label',
+      '3:we-picker__btn 3:we-picker__btn 2:we-picker__row 2:we-picker__filter-row 3:we-picker__playlist-select 3:we-picker__text 3:we-picker__search 3:we-picker__hint 3:we-picker__label',
       '3:we-picker__playlist-select 3:we-picker__hint 3:we-picker__label 3:we-picker__playlist-select 2:we-picker__grid 3:we-picker__card 4:we-picker__card-close 3:we-picker__card',
       '3:we-picker__card--checked 4:we-picker__card-placeholder 4:we-picker__card-title 4:we-picker__card-check 3:we-picker__card 4:we-picker__card-placeholder 4:we-picker__card-title 4:we-picker__card-check',
       '3:we-picker__card 4:we-picker__card-placeholder 4:we-picker__card-title 4:we-picker__card-check 3:we-picker__card 4:we-picker__card-placeholder 4:we-picker__card-title 4:we-picker__card-check',
@@ -1211,7 +1211,7 @@ setTimeout(async () => {
     const modalRoot = findByClass(tree, 'we-picker__modal');
     const seqNormal = modalClassSequence(tree);
     // 绝对锚点（不读 golden）：否则"两边都空"也算相等。
-    assert.equal(seqNormal.length, 160, '绝对锚点：普通视图的 class 令牌数（空序列不得算通过）');
+    assert.equal(seqNormal.length, 161, '绝对锚点：普通视图的 class 令牌数（空序列不得算通过）');
     assert.ok(collectCards(modalRoot).length >= 25, '绝对锚点：模态框里的卡片数 ≥ 25（关闭卡 + 当页 24 张）');
     assert.ok(classSequenceMatches(seqNormal, EXPECTED_NORMAL), '普通视图：模态框标记序列与搬迁前逐字一致');
     // 负对照：把**变异输入**喂进**同一条判据**
@@ -1243,6 +1243,20 @@ setTimeout(async () => {
     assert.equal(badgeOf(tree), '0', '搜不到时徽标显示 0');
     searchInput.props.onInput({ target: { value: '' } });
     tree = renderPicker();
+
+    // Source filtering changes browsing, never playback. Drive the emitted bundle's real UI.
+    const sourceSel = findByProp(tree, 'aria-label', '壁纸来源');
+    assert.ok(sourceSel && typeof sourceSel.props.onChange === 'function');
+    const beforeSourceId = persisted().id;
+    sourceSel.props.onChange({ target: { value: 'local' } });
+    tree = renderPicker();
+    assert.equal(collectCards(tree).length, 1, 'source=local excludes this fixture library, leaving only close card');
+    for (const t of rotationTimers.filter((x) => !x.cleared && !x.fired && x.ms === 200)) { t.fired = true; t.fn(); }
+    assert.equal(persisted().sourceFilter, 'local');
+    assert.equal(persisted().id, beforeSourceId, 'source filtering does not change playback');
+    sourceSel.props.onChange({ target: { value: 'all' } });
+    tree = renderPicker();
+    assert.equal(collectCards(tree).length, 25);
 
     // 类型筛选：持久化设置（走 setSetting），且真的换掉网格内容
     const typeSel = findByProp(tree, 'aria-label', '类型');

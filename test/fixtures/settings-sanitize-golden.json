@@ -66,7 +66,12 @@
         "sceneLiveFailures": {},
         "customFrames": {},
         "caretColor": "",
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       },
       "host": {
         "id": "",
@@ -125,7 +130,12 @@
         "switchTransitionSpeed": "normal",
         "caretColor": "",
         "themeFollow": false,
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       }
     },
     {
@@ -191,7 +201,12 @@
         "caretColor": "",
         "videoVolume": 0,
         "videoAudioEnabled": true,
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       },
       "host": "__null__"
     },
@@ -258,7 +273,12 @@
         "caretColor": "",
         "videoVolume": 0,
         "videoAudioEnabled": true,
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       },
       "host": "__null__"
     },
@@ -325,7 +345,12 @@
         "caretColor": "",
         "videoVolume": 0,
         "videoAudioEnabled": true,
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       },
       "host": "__null__"
     },
@@ -394,7 +419,12 @@
         "sceneLiveFailures": {},
         "customFrames": {},
         "caretColor": "",
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       },
       "host": {
         "id": "",
@@ -453,7 +483,12 @@
         "switchTransitionSpeed": "normal",
         "caretColor": "",
         "themeFollow": false,
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       }
     },
     {
@@ -578,7 +613,12 @@
         "sceneLiveFailures": {},
         "customFrames": {},
         "caretColor": "",
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       },
       "host": {
         "id": "",
@@ -637,7 +677,12 @@
         "switchTransitionSpeed": "normal",
         "caretColor": "",
         "themeFollow": false,
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       }
     },
     {
@@ -807,7 +852,12 @@
         "sceneLiveFailures": {},
         "customFrames": {},
         "caretColor": "",
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       },
       "host": {
         "id": "",
@@ -866,7 +916,12 @@
         "switchTransitionSpeed": "normal",
         "caretColor": "",
         "themeFollow": false,
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       }
     },
     {
@@ -935,7 +990,12 @@
         "sceneLiveFailures": {},
         "customFrames": {},
         "caretColor": "",
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       },
       "host": {
         "id": "",
@@ -994,7 +1054,12 @@
         "switchTransitionSpeed": "normal",
         "caretColor": "",
         "themeFollow": false,
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       }
     },
     {
@@ -1077,7 +1142,12 @@
         "sceneLiveFailures": {},
         "customFrames": {},
         "caretColor": "",
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       },
       "host": {
         "id": "",
@@ -1136,7 +1206,12 @@
         "switchTransitionSpeed": "normal",
         "caretColor": "",
         "themeFollow": false,
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       }
     },
     {
@@ -1219,7 +1294,12 @@
         "sceneLiveFailures": {},
         "customFrames": {},
         "caretColor": "",
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       },
       "host": {
         "id": "",
@@ -1278,7 +1358,12 @@
         "switchTransitionSpeed": "normal",
         "caretColor": "",
         "themeFollow": false,
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       }
     },
     {
@@ -1348,7 +1433,12 @@
         "sceneLiveFailures": {},
         "customFrames": {},
         "caretColor": "",
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       },
       "host": {
         "id": "",
@@ -1407,7 +1497,12 @@
         "switchTransitionSpeed": "normal",
         "caretColor": "",
         "themeFollow": false,
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       }
     },
     {
@@ -1482,7 +1577,12 @@
         "sceneLiveFailures": {},
         "customFrames": {},
         "caretColor": "",
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       },
       "host": {
         "id": "",
@@ -1541,7 +1641,12 @@
         "switchTransitionSpeed": "normal",
         "caretColor": "",
         "themeFollow": false,
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       }
     },
     {
@@ -1613,7 +1718,12 @@
         "sceneLiveFailures": {},
         "customFrames": {},
         "caretColor": "",
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       },
       "host": {
         "id": "",
@@ -1672,7 +1782,12 @@
         "switchTransitionSpeed": "normal",
         "caretColor": "",
         "themeFollow": false,
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       }
     },
     {
@@ -1751,7 +1866,12 @@
         "sceneLiveFailures": {},
         "customFrames": {},
         "caretColor": "",
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       },
       "host": {
         "id": "",
@@ -1810,7 +1930,12 @@
         "switchTransitionSpeed": "normal",
         "caretColor": "",
         "themeFollow": false,
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       }
     },
     {
@@ -1887,6 +2012,7 @@
             "id": "g1",
             "name": "我的列表",
             "interval": 30,
+            "videoOnly": false,
             "order": "random",
             "wallpaperIds": [
               "w1"
@@ -1958,7 +2084,12 @@
           "y": true
         },
         "caretColor": "",
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       },
       "host": {
         "id": "",
@@ -1976,6 +2107,7 @@
             "id": "g1",
             "name": "我的列表",
             "interval": 30,
+            "videoOnly": false,
             "order": "random",
             "wallpaperIds": [
               "w1"
@@ -2041,7 +2173,12 @@
         "switchTransitionSpeed": "normal",
         "caretColor": "",
         "themeFollow": false,
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       }
     },
     {
@@ -2109,7 +2246,12 @@
         "sceneLiveFailures": {},
         "customFrames": {},
         "caretColor": "",
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       },
       "host": {
         "id": "",
@@ -2168,7 +2310,12 @@
         "switchTransitionSpeed": "normal",
         "caretColor": "",
         "themeFollow": false,
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       }
     },
     {
@@ -2236,7 +2383,12 @@
         "sceneLiveFailures": {},
         "customFrames": {},
         "caretColor": "",
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       },
       "host": {
         "id": "wallpaper-42",
@@ -2295,7 +2447,12 @@
         "switchTransitionSpeed": "normal",
         "caretColor": "",
         "themeFollow": false,
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       }
     },
     {
@@ -2364,7 +2521,12 @@
         "sceneLiveFailures": {},
         "customFrames": {},
         "caretColor": "",
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       },
       "host": {
         "id": "",
@@ -2423,7 +2585,12 @@
         "switchTransitionSpeed": "normal",
         "caretColor": "",
         "themeFollow": false,
-        "adapterTarget": "auto"
+        "adapterTarget": "auto",
+        "sourceFilter": "all",
+        "defaultId": "",
+        "fabEnabled": false,
+        "fabPosition": "bottom-right",
+        "fabSnapY": null
       }
     }
   ]

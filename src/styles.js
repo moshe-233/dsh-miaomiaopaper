@@ -58,6 +58,14 @@ const READABILITY_FLOOR_DARK = 0.59;
 
 // ── Styles ──────────────────────────────────────────────────────────────────
 const CSS = `
+.we-fab{position:fixed;z-index:2147483000;font:13px/1.5 system-ui,sans-serif;-webkit-app-region:no-drag}
+.we-fab__disc{width:52px;height:52px;border:1px solid #777;border-radius:50%;color:#ddd;font-size:22px;cursor:pointer;touch-action:none;background:radial-gradient(circle,#b4a2ed 0 4px,#262630 5px 11px,#111 12px 15px,#303038 16px 17px,#131318 18px 23px,#303038 24px 25px,#111 26px);box-shadow:0 5px 20px #0006}
+.we-fab__disc:focus-visible{outline:3px solid #a696ee;outline-offset:3px}
+.we-fab__panel{position:absolute;box-sizing:border-box;width:min(360px,calc(100vw - 32px));max-height:calc(100vh - 150px);overflow:auto;padding:14px;border:1px solid #8885;border-radius:16px;background:#f6f6fb;color:#20202a;box-shadow:0 12px 40px #0004}
+.we-fab__title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;margin-bottom:10px}
+.we-fab__actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+@media(prefers-color-scheme:dark){.we-fab__panel{background:#20212b;color:#eee}}
+
   /* Wallpaper layer: a fixed child of <body>, sunk BELOW the app frame.
      壁纸透明度（#82）作用在**媒体叶子**（.we-layer .we-media）上 —— 对
      <video>/<img>/<iframe>/canvas 四类媒体统一生效，也无需逐媒体处理
