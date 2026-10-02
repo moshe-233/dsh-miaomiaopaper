@@ -752,7 +752,7 @@ setTimeout(async () => {
       // Star 按钮：真链接、新窗口、指到本仓。
       const starLinks = collectByClass(tree, 'we-about__star');
       assert.equal(starLinks.length, 1, '关于页必须有且只有一枚 Star 按钮');
-      assert.equal(String(starLinks[0].props.href), 'https://github.com/elysia395/dsh-wallpaper-engine',
+      assert.equal(String(starLinks[0].props.href), 'https://github.com/moshe-233/dsh-miaomiaopaper',
         'Star 按钮必须指向本仓地址');
       assert.equal(String(starLinks[0].props.target), '_blank', 'Star 按钮必须在新窗口打开');
       assert.ok(starLinks[0].props.rel && String(starLinks[0].props.rel).includes('noopener'),

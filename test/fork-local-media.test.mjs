@@ -77,7 +77,8 @@ test('startup default overrides valid previous selection and rejects hidden/rest
 });
 
 function bootHarness(initial={}) {
-  const source=fs.readFileSync(new URL('../src/client.js',import.meta.url),'utf8');
+  // 折行尾：CRLF 检出（Git for Windows 默认 autocrlf）下，下面按 '\n' 定位函数体会恒找不到。
+  const source=fs.readFileSync(new URL('../src/client.js',import.meta.url),'utf8').replace(/\r\n/g,'\n');
   const extract=(name)=>{const start=source.indexOf((name==='loadInventory'?'async ':'')+'function '+name+'(');const end=source.indexOf('\n}\n',start)+3;assert.ok(start>=0&&end>start);return source.slice(start,end);};
   const selection={...sanitizeFromSchema({},'client'),...initial,rotationSeeded:true};
   const pending=[],applied=[];

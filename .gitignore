@@ -55,3 +55,10 @@ scene-layers-out/
 /.integration-notes/
 .DS_Store
 **/.DS_Store
+
+# 本地机密/凭据 (fork 特有: 上游 .gitignore 无这些项, 勿丢)
+.env
+.env.*
+*.pem
+*.key
+.npmrc

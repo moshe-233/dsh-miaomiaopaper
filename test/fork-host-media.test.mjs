@@ -8,7 +8,8 @@ import vm from 'node:vm';
 import http from 'node:http';
 import { localMediaDescriptor, uploadLimitBytes } from '../lib/local-media.js';
 import { registerUploadRoutes } from '../lib/routes/upload.js';
-const host=fs.readFileSync(new URL('../lib/index.js',import.meta.url),'utf8');
+// 折行尾：下面按 '\n/**\n * Validate + normalize' 定位切片，CRLF 检出下会恒找不到。
+const host=fs.readFileSync(new URL('../lib/index.js',import.meta.url),'utf8').replace(/\r\n/g,'\n');
 // Evaluate the unchanged production scanner/removal resolver against a temporary
 // fixture, avoiding Steam discovery and any access to a user's real library.
 const start=host.indexOf('async function enumerateUploadsP(dir) {');

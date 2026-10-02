@@ -12,7 +12,8 @@
  */
 
 // 项目仓库（README / package.json 的同一条地址）：关于页的按钮与可复制文本都用它。
-const ABOUT_REPO_URL = "https://github.com/elysia395/dsh-wallpaper-engine";
+// fork 二开：指向本 fork 仓库（上游为 elysia395/dsh-wallpaper-engine），与 package.json 的 repository.url 三边一致。
+const ABOUT_REPO_URL = "https://github.com/moshe-233/dsh-miaomiaopaper";
 
 // 两张二维码的**路由路径**（相对 BASE，交给 apiUrl 拼前缀）：
 //   · QQ 群「DSHWE | LLM 讨论群」     → lib/about/qq-group.png

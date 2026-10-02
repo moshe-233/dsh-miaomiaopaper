@@ -1,7 +1,7 @@
 {
-  "name": "dsh-plugin-wallpaper-engine",
-  "version": "1.2.0",
-  "description": "Wallpaper Engine backgrounds for the DSH web GUI: render your local Wallpaper Engine wallpapers behind the chat — Scene and Web in real time through the bundled WebWallGL engine, Video played directly — with iOS-style liquid glass, adjustable blur/scrim/border/opacity, custom typography and caret, and a liquid-glass makeover of the whole settings window. Prerequisites (update BOTH first): latest DeepSeek Harness desktop (>= 0.2.0-rc.1) and dsh-better-sidebar >= 0.19.0.",
+  "name": "@moshe233/dsh-miaomiaopaper",
+  "version": "1.2.0-miao",
+  "description": "dsh-miaomiaopaper: 喵喵壁纸管理器 — Wallpaper Engine backgrounds & liquid glass for DSH web GUI (Rebuilt on clean upstream elysia395/dsh-wallpaper-engine v1.2.0).",
   "type": "module",
   "engines": {
     "node": ">=18",
@@ -11,7 +11,7 @@
   "types": "lib/types/index.d.ts",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/elysia395/dsh-wallpaper-engine.git"
+    "url": "git+https://github.com/moshe-233/dsh-miaomiaopaper.git"
   },
   "keywords": [
     "dsh",
