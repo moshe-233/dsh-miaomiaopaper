@@ -162,7 +162,7 @@ function createComposerController(doc, changed) {
   };
 }
 let composerController = null;
-function ComposerCollapseButton() {
+function ComposerCollapseButton({wide = true} = {}) {
   useWeLocale(); useStore();
   const c = composerController;
   const available = Boolean(c && c.available());
@@ -170,8 +170,9 @@ function ComposerCollapseButton() {
   const label = collapsed ? weT('展开输入区') : weT('收起输入区');
   return React.createElement('button', {type:'button', className:'we-composer-toggle', disabled:!available,
     'data-collapsed':collapsed ? 'true' : 'false',
+    'data-wide':wide ? 'true' : 'false',
     'aria-expanded':available ? !collapsed : undefined,
-    title:available ? weT('收起或展开输入区') : weT('当前页面没有输入区'), 'aria-label':label,
+    title:available ? label : weT('当前页面没有输入区'), 'aria-label':label,
     onClick:() => { if (c) c.toggle(); }},
     React.createElement('svg',{className:'we-composer-toggle__icon',viewBox:'0 0 24 24',width:18,height:18,fill:'none',stroke:'currentColor',strokeWidth:1.6,strokeLinecap:'round',strokeLinejoin:'round','aria-hidden':true},
       React.createElement('rect',{x:3,y:3,width:18,height:18,rx:4}),
@@ -190,7 +191,7 @@ function installComposerCollapse(ctx) {
       observer = new MutationObserver(() => { if (controller) controller.refresh(); });
       observer.observe(document.body,{childList:true,subtree:true});
     }
-    const seat = ctx.slots.register({name:'sidebar.footer.action',id:'wallpaper-engine-composer',order:-100},()=>React.createElement(ComposerCollapseButton));
+    const seat = ctx.slots.register({name:'sidebar.footer.action',id:'wallpaper-engine-composer',order:-100},props=>React.createElement(ComposerCollapseButton, props));
     return () => {
       active = false;
       if (observer) observer.disconnect(); observer = null;

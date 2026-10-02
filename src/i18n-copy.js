@@ -40,7 +40,6 @@ const WE_I18N_EN = {
   "上一张": "Previous wallpaper",
   "从头播放": "Restart video",
   "收起控制面板": "Collapse controls",
-  "收起或展开输入区": "Collapse or expand composer",
   "可拖至右侧；Ctrl+Alt+方向键切换，Ctrl+Alt+空格播放或暂停": "Drag to dock right; Ctrl+Alt+arrows to switch, Ctrl+Alt+Space to play or pause",
   "悬浮球位置": "Floating control position",
   "左上角": "Top left",

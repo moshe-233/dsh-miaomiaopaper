@@ -187,3 +187,43 @@ test('composer pill labels its action and restore state without changing control
   b.props.onClick();assert.equal(collapsed,false);assert.equal(toggles,2);
   available=false;b=c.ComposerCollapseButton();assert.equal(b.props.disabled,true);assert.equal(b.props['aria-expanded'],undefined);
 });
+
+
+test('native footer registration forwards host props and keeps compact button semantics',()=>{
+  const callbacks=new Map();let registration;
+  const controller={available:()=>true,collapsed:()=>false,toggle:()=>{}};
+  const c=context({document:{querySelector:()=>null},emit:()=>{},useWeLocale:()=>{},useStore:()=>{},weT:s=>s,
+    React:{createElement:(type,props,...children)=>({type,props,children})},controller});
+  const dispose=c.installComposerCollapse({slots:{
+    inject:(name,fn)=>{callbacks.set(name,fn);return ()=>{};},
+    register:(options,render)=>{registration={options,render};return ()=>{};},
+  }});
+  const cleanup=callbacks.get('sidebar.footer.action')();
+  assert.equal(registration.options.name,'sidebar.footer.action');
+  assert.equal(registration.options.id,'wallpaper-engine-composer');
+  for(const wide of [true,false]){
+    const element=registration.render({wide});assert.equal(element.props.wide,wide);
+    vm.runInContext('composerController=controller',c);
+    const b=element.type(element.props);
+    assert.equal(b.props['data-wide'],String(wide));assert.equal(b.props.title,'收起输入区');
+    assert.equal(b.props['aria-label'],'收起输入区');assert.equal(b.props['aria-expanded'],true);
+    assert.equal(b.props.type,'button');
+  }
+  controller.collapsed=()=>true;
+  const b=c.ComposerCollapseButton({wide:false});
+  assert.equal(b.props.title,'展开输入区');assert.equal(b.props['aria-expanded'],false);
+  assert.equal(b.props['data-collapsed'],'true');assert.equal(b.props['data-wide'],'false');
+  cleanup();dispose();
+});
+
+test('footer styles share state geometry and only compact mode hides the label',()=>{
+  const css=read('../src/styles.js').split('/* A self-contained glass surface:')[0];
+  assert.ok(css.includes('height:36px'));assert.ok(css.includes('width:100%'));
+  assert.ok(css.includes('[data-wide=false] .we-composer-toggle__label{display:none}'));
+  assert.ok(css.includes('body[data-ds-dark-theme] button.we-composer-toggle[data-collapsed=true]'));
+  assert.ok(css.includes('@media(forced-colors:active)'));
+  for(const match of css.matchAll(/button\.we-composer-toggle\[data-collapsed=true\]\{([^}]+)\}/g)){
+    assert.doesNotMatch(match[1],/(?:^|;)(?:width|height|padding|margin|border-radius):/);
+  }
+  assert.doesNotMatch(css,/animation:|transition:|hHd-Xa_/);
+});
