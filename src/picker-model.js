@@ -92,9 +92,9 @@ function migrateLocalReferences(settings, wallpapers) {
   };
 }
 
-/** Startup fallback never overrides a valid current item or a hidden/restricted default. */
+/** Every fresh startup prefers the chosen default; hidden/restricted targets remain blocked. */
 function startupWallpaperId(settings, wallpapers) {
-  if (wallpapers.some((w) => w.id === settings.id && keepPlayingWallpaper(w, settings.contentRatingFilter))) return "";
+  if (settings.id === settings.defaultId) return "";
   const w = wallpapers.find((item) => item.id === settings.defaultId);
   return w && keepPlayingWallpaper(w, settings.contentRatingFilter) && !isHiddenWallpaper(w.id, settings.hiddenIds) ? w.id : "";
 }

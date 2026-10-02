@@ -102,7 +102,7 @@ test('FAB mounts only when enabled and cleans every global listener; shortcuts i
   const sel={fabEnabled:true,fabPosition:'bottom-right',fabSnapY:null,inventory:{wallpapers:[]}};
   const c=context({selection:sel,window:{innerHeight:800,addEventListener:(k,v)=>events.set(k,v),removeEventListener:(k,v)=>{assert.equal(events.get(k),v);events.delete(k);}},
     React:{useState:v=>[typeof v==='function'?v():v,()=>{}],useRef:v=>{const r={current:v};refs.push(r);return r;},useEffect:f=>effects.push(f),createElement:(type,props,...children)=>({type,props,children})},
-    useWeLocale:()=>{},useStore:()=>sel,playbackIsVideoLike:()=>false,weT:s=>s,onNextWallpaper:()=>next++,onTogglePlay:()=>play++});
+    useWeLocale:()=>{},useStore:()=>sel,playableInventory:()=>[],activeRotationGroup:()=>null,matchesSourceFilter:()=>true,playbackIsVideoLike:()=>false,weT:s=>s,onNextWallpaper:()=>next++,onTogglePlay:()=>play++});
   assert.ok(c.FloatingWallpaperControl());const cleanup=effects[0]();assert.equal(events.size,7);
   const key={key:'ArrowRight',ctrlKey:true,altKey:true,target:{tagName:'TEXTAREA'},preventDefault:()=>{}};
   events.get('keydown')(key);assert.equal(next,0);key.target={tagName:'BODY'};events.get('keydown')(key);assert.equal(next,1);
@@ -117,4 +117,38 @@ test('all control modules are inlined, and real playback/editor/slot wiring rema
   assert.ok(media.includes('rememberVideoSelection(id);'));
   assert.ok(client.includes('installComposerCollapse(ctx)'));
   assert.ok(panel.includes('editing.videoOnly'));
+});
+
+test('mini player distinguishes collapse from off, shares selection and disables empty controls',()=>{
+  const items=[{id:'a',title:'Video',type:'video'},{id:'b',title:'Image',type:'image'}];
+  const sel={fabEnabled:true,fabPosition:'bottom-right',fabSnapY:null,inventory:{wallpapers:items},id:'a',url:'/a',videoPlaying:true};
+  const states=[],refs=[];let si=0,ri=0,toggles=0,chosen='';
+  const c=context({selection:sel,window:{innerHeight:842},document:{activeElement:null},
+    React:{useState:v=>{const i=si++;if(!(i in states))states[i]=typeof v==='function'?v():v;return [states[i],v=>states[i]=v];},useRef:v=>refs[ri++]|| (refs[ri-1]={current:v}),useEffect:()=>{},createElement:(type,props,...children)=>({type,props:props||{},children})},
+    useWeLocale:()=>{},useStore:()=>sel,playableInventory:()=>items,activeRotationGroup:()=>null,matchesSourceFilter:()=>true,
+    playbackIsVideoLike:()=>sel.id==='a',weT:s=>s,onTogglePlay:()=>toggles++,onNextWallpaper:()=>{},
+    setSetting:(k,v)=>sel[k]=v,emit:()=>{},applySelection:id=>chosen=id});
+  const render=()=>{si=0;ri=0;return c.FloatingWallpaperControl();};
+  const all=(n)=>n&&typeof n==='object'?[n,...(n.children||[]).flat(Infinity).flatMap(all)]:[];
+  const by=(tree,label)=>all(tree).find(n=>n.props['aria-label']===label&&n.type==='button');
+  let tree=render();assert.equal(all(tree).filter(n=>n.type==='section').length,0);
+  by(tree,'悬浮播放器').props.onClick();tree=render();assert.equal(all(tree).filter(n=>n.type==='section').length,1);
+  by(tree,'暂停').props.onClick();assert.equal(toggles,1);
+  all(tree).find(n=>n.props.className==='we-fab__list-toggle').props.onClick();tree=render();
+  all(tree).filter(n=>n.props.className==='we-fab__item')[1].props.onClick();assert.equal(chosen,'b');
+  items.push(...Array.from({length:60},(_,i)=>({id:'extra-'+i,title:'Extra',type:'image'})));tree=render();assert.equal(all(tree).filter(n=>n.props.className==='we-fab__item').length,24);
+  all(tree).find(n=>n.type==='button'&&n.children.includes('显示更多壁纸')).props.onClick();tree=render();assert.equal(all(tree).filter(n=>n.props.className==='we-fab__item').length,48);
+  by(tree,'收起控制面板').props.onClick();tree=render();assert.equal(sel.fabEnabled,true);assert.equal(toggles,1);
+  by(tree,'悬浮播放器').props.onClick();tree=render();by(tree,'关闭悬浮窗').props.onClick();assert.equal(render(),null);
+  sel.fabEnabled=true;sel.id='';sel.url='';tree=render();assert.equal(by(tree,'播放').props.disabled,true);assert.equal(by(tree,'从头播放').props.disabled,true);
+});
+
+test('glass mini player has native-theme, opaque and reduced-motion fallbacks',()=>{
+  const css=read('../src/styles.js');
+  assert.ok(css.includes('body[data-ds-dark-theme] .we-fab'));
+  assert.ok(css.includes('backdrop-filter:blur(28px) saturate(170%)'));
+  assert.ok(css.includes('prefers-reduced-transparency:reduce'));
+  assert.ok(css.includes('.we-fab__panel{animation:none}'));
+  assert.ok(css.includes('we-fab button:focus-visible'));
+  assert.ok(!controls.includes('React.createElement(QuickPanel'));
 });

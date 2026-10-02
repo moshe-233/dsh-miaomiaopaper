@@ -501,7 +501,7 @@ async function loadInventory() {
     if (migrated.id !== selection.id) startupId = migrated.id;
     if (!startupWallpaperResolved) {
       startupWallpaperResolved = true;
-      if (!startupId) startupId = startupWallpaperId(selection, next.wallpapers);
+      startupId = startupWallpaperId(Object.assign({}, selection, migrated), next.wallpapers) || startupId;
     }
   }
   setTransient("inventory", next);

@@ -64,9 +64,10 @@ test('legacy ID migration remaps references only for unambiguous aliases', () =>
   assert.equal(api.migrateLocalReferences(old,[item('a',{legacyId:'file-a'}),item('b',{legacyId:'file-a'})]).id,'file-a');
   assert.equal(api.migrateLocalReferences(old,[item('file-a'),item('a',{legacyId:'file-a'})]).id,'file-a');
 });
-test('startup fallback preserves valid current selection and rejects hidden/restricted/missing targets', () => {
+test('startup default overrides valid previous selection and rejects hidden/restricted/missing targets', () => {
   const list=[item('current'),item('default')];const s={id:'current',defaultId:'default',contentRatingFilter:'everyone',hiddenIds:[]};
-  assert.equal(api.startupWallpaperId(s,list),'');
+  assert.equal(api.startupWallpaperId(s,list),'default');
+  assert.equal(api.startupWallpaperId({...s,id:'default'},list),'');
   assert.equal(api.startupWallpaperId({...s,id:''},list),'default');
   assert.equal(api.startupWallpaperId({...s,id:'gone'},list),'default');
   assert.equal(api.startupWallpaperId({...s,id:'',hiddenIds:['default']},list),'');
@@ -88,15 +89,23 @@ function bootHarness(initial={}) {
   vm.runInContext('let inventorySeq=0;let startupWallpaperResolved=false;let propsPanelOpen=false;\n'+extract('loadInventory')+'\n'+extract('onClear'),c);
   return {c,selection,pending,applied,resolve:(data)=>pending.shift()({ok:true,data:{wallpapers:data,playlists:[]}})};
 }
-test('actual inventory loader applies startup fallback once and clear beats a delayed response',async()=>{
+test('actual inventory loader applies startup default once and clear beats a delayed response',async()=>{
   const h=bootHarness({defaultId:'default'});let job=h.c.loadInventory();h.resolve([item('default')]);await job;
   assert.deepEqual(h.applied,['default']);h.c.onClear();job=h.c.loadInventory();h.resolve([item('default')]);await job;assert.equal(h.selection.id,'');
   const delayed=bootHarness({defaultId:'default'});job=delayed.c.loadInventory();delayed.c.onClear();delayed.resolve([item('default')]);await job;assert.deepEqual(delayed.applied,['']);
 });
-test('actual inventory loader preserves valid current and ignores superseded responses',async()=>{
-  const h=bootHarness({id:'current',defaultId:'default'});let job=h.c.loadInventory();h.resolve([item('current'),item('default')]);await job;assert.deepEqual(h.applied,[]);
+test('actual inventory loader overrides valid current and ignores superseded responses',async()=>{
+  const h=bootHarness({id:'current',defaultId:'default'});let job=h.c.loadInventory();h.resolve([item('current'),item('default')]);await job;assert.deepEqual(h.applied,['default']);
   const race=bootHarness({defaultId:'default'}),old=race.c.loadInventory(),fresh=race.c.loadInventory();
   race.pending[1]({ok:true,data:{wallpapers:[item('default')],playlists:[]}});await fresh;
   race.pending[0]({ok:true,data:{wallpapers:[],playlists:[]}});await old;
   assert.deepEqual(race.applied,['default']);assert.equal(race.selection.inventory.wallpapers.length,1);
+});
+
+test('startup default wins over a migrated previous id; missing default retains current',async()=>{
+  const h=bootHarness({id:'file-old',defaultId:'default'});const job=h.c.loadInventory();
+  h.resolve([item('local-current',{legacyId:'file-old'}),item('default')]);await job;
+  assert.deepEqual(h.applied,['default']);
+  const keep=bootHarness({id:'current',defaultId:'missing'});const next=keep.c.loadInventory();keep.resolve([item('current')]);await next;
+  assert.deepEqual(keep.applied,[]);assert.equal(keep.selection.id,'current');
 });

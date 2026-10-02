@@ -12,19 +12,19 @@
 |---|---|
 | `npm run build` | 成功，`lib/client.js` 由源码生成 |
 | `npm run verify:all` | **退出码 0**，包含 build、verify、verify:docs、smoke |
-| 新增功能测试 | **22 个通过，0 失败**；已接入 verify 链 |
+| 新增功能测试 | **25 个通过，0 失败**；已接入 verify 链 |
 | 上游界面、schema、类型、包发布范围、路由索引等硬检查 | 完整 verify 链执行成功 |
 | 原有轮换、live、资源释放、异步身份与字体集 smoke | 完整 smoke 链执行成功 |
 | `git diff --check` | 通过 |
 
-22 个新增测试也在隔离的 Linux 暂存环境通过。该环境不是完整 checkout，不能替代 Windows 完整验证。第 22 项覆盖拖动后悬浮面板上下可用高度，来源于真实桌面端发现的越界问题。
+25 个新增测试也在隔离的 Linux 暂存环境通过。该环境不是完整 checkout，不能替代 Windows 完整验证。包含拖动面板高度、默认项覆盖历史选择、迷你播放器收起/关闭/分批列表与材质回退。
 
 ## 告警与未覆盖项
 
 1. **上游 warn-only 死声明检查仍报告 1 项**：`test/verify-scene-live.mjs:1552` 的 `tabBodyOf` 未引用。该文件未改动，判据和既有 warn-only 策略未修改；不能描述为“所有守卫零告警”。
 2. 媒体桥二进制未 provision，上游已有 `--allow-skip` 明示跳过对应端到端段；未为测试下载安装媒体桥。
 3. Windows 无法覆盖 POSIX 专属分支，输出明确标注 platform-skipped，不计入通过。
-4. 用户后续授权了 DSH NEXT 实机安装与联调，结果见 [DESKTOP-TEST.md](DESKTOP-TEST.md)。短 MP4 实播通过不等于长视频、Edge、媒体桥转码和所有窗口尺寸验收。
+4. 用户后续授权了 DSH NEXT 实机安装与联调，最新默认壁纸/迷你播放器结果见 [MINI-PLAYER.md](MINI-PLAYER.md)，首次安装历史见 [DESKTOP-TEST.md](DESKTOP-TEST.md)。短 MP4 实播通过不等于长视频、Edge、媒体桥转码和所有窗口尺寸验收。
 
 ## 变更边界
 

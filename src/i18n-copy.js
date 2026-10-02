@@ -20,6 +20,16 @@
 // ── 客户端文案（src/**）──────────────────────────────────────────────────────
 
 const WE_I18N_EN = {
+  "显示更多壁纸": "Show more wallpapers",
+  "悬浮播放器": "Mini player",
+  "点击展开，拖动调整位置": "Click to expand; drag to reposition",
+  "关闭悬浮窗": "Turn off mini player",
+  "开启悬浮窗": "Turn on mini player",
+  "播放未就绪": "Playback not ready",
+  "从壁纸列表选择一张": "Choose a wallpaper from the list",
+  "正在播放": "Playing",
+  "已暂停": "Paused",
+  "当前筛选下没有可播放壁纸": "No playable wallpapers match the current filters",
   "当前列表至少需要 1 个可播放视频": "This playlist needs at least one playable video",
   "{name}（{count} 视频 · 播完切换）": "{name} ({count} videos \u00b7 advance on end)",
 
@@ -41,9 +51,9 @@ const WE_I18N_EN = {
   "全部来源": "All sources",
   "WE 壁纸库": "Wallpaper Engine library",
   "本地媒体": "Local media",
-  "没有有效的上次壁纸时才应用，不覆盖当前播放": "Used only when the previous wallpaper is unavailable; does not override playback",
-  "取消启动兜底": "Clear startup fallback",
-  "设为启动兜底": "Use as startup fallback",
+  "每次启动时使用此壁纸": "Use this wallpaper every time the plugin starts",
+  "取消默认壁纸": "Clear default wallpaper",
+  "设置为默认壁纸": "Set as default wallpaper",
   // ── src/adapter.js ──
   "自动检测": "Auto-detect",
   "原生浏览器": "Plain browser",

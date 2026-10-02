@@ -126,9 +126,13 @@
           React.createElement("button", {
             className: "we-picker__btn", type: "button", disabled: !sel.id && !sel.defaultId,
             "aria-pressed": Boolean(sel.id && sel.defaultId === sel.id),
-            title: weT("没有有效的上次壁纸时才应用，不覆盖当前播放"),
+            title: weT("每次启动时使用此壁纸"),
             onClick: () => { setSetting("defaultId", !sel.id || sel.defaultId === sel.id ? "" : sel.id); emit(); },
-          }, sel.defaultId && (!sel.id || sel.defaultId === sel.id) ? weT("取消启动兜底") : weT("设为启动兜底")),
+          }, sel.defaultId && (!sel.id || sel.defaultId === sel.id) ? weT("取消默认壁纸") : weT("设置为默认壁纸")),
+          React.createElement("button", {
+            className: "we-picker__btn", type: "button", "aria-pressed": Boolean(sel.fabEnabled),
+            onClick: () => { setSetting("fabEnabled", !sel.fabEnabled); emit(); },
+          }, sel.fabEnabled ? weT("关闭悬浮窗") : weT("开启悬浮窗")),
           React.createElement("button", {
             className: "we-picker__btn", type: "button",
             onClick: onRefresh, disabled: sel.loading,

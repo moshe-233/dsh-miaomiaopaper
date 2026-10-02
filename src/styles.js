@@ -58,13 +58,34 @@ const READABILITY_FLOOR_DARK = 0.59;
 
 // ── Styles ──────────────────────────────────────────────────────────────────
 const CSS = `
-.we-fab{position:fixed;z-index:2147483000;font:13px/1.5 system-ui,sans-serif;-webkit-app-region:no-drag}
-.we-fab__disc{width:52px;height:52px;border:1px solid #777;border-radius:50%;color:#ddd;font-size:22px;cursor:pointer;touch-action:none;background:radial-gradient(circle,#b4a2ed 0 4px,#262630 5px 11px,#111 12px 15px,#303038 16px 17px,#131318 18px 23px,#303038 24px 25px,#111 26px);box-shadow:0 5px 20px #0006}
-.we-fab__disc:focus-visible{outline:3px solid #a696ee;outline-offset:3px}
-.we-fab__panel{position:absolute;box-sizing:border-box;width:min(360px,calc(100vw - 32px));max-height:calc(100vh - 150px);overflow:auto;padding:14px;border:1px solid #8885;border-radius:16px;background:#f6f6fb;color:#20202a;box-shadow:0 12px 40px #0004}
-.we-fab__title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;margin-bottom:10px}
-.we-fab__actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px}
-@media(prefers-color-scheme:dark){.we-fab__panel{background:#20212b;color:#eee}}
+/* A self-contained glass surface: host theme wins over the OS appearance. */
+.we-fab{--we-mini-glass:rgba(250,251,255,.78);--we-mini-solid:#f6f7fb;--we-mini-ink:#20232c;--we-mini-muted:#626774;--we-mini-line:rgba(35,45,65,.12);--we-mini-hover:rgba(40,55,85,.07);position:fixed;z-index:2147483000;font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--we-mini-ink);-webkit-app-region:no-drag}
+body[data-ds-dark-theme] .we-fab{--we-mini-glass:rgba(29,32,40,.82);--we-mini-solid:#23262f;--we-mini-ink:#f3f5fa;--we-mini-muted:#b0b7c6;--we-mini-line:rgba(230,237,255,.14);--we-mini-hover:rgba(235,240,255,.09)}
+.we-fab button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
+.we-fab__disc,.we-fab__panel{background:linear-gradient(145deg,rgba(255,255,255,.18),transparent 55%),var(--we-mini-glass);-webkit-backdrop-filter:blur(28px) saturate(170%);backdrop-filter:blur(28px) saturate(170%);border:1px solid var(--we-mini-line);box-shadow:0 16px 48px #0002,0 2px 6px #0001,inset 0 1px 0 #ffffff38}
+.we-fab__disc{position:relative;display:grid;place-items:center;width:52px;height:52px;padding:0;border-radius:19px;cursor:grab;touch-action:none;transition:box-shadow .18s ease,background .18s ease}
+.we-fab__disc>svg{width:23px;height:23px}.we-fab[data-dragging] .we-fab__disc{cursor:grabbing;box-shadow:0 20px 48px #0004}
+.we-fab__status{position:absolute;right:8px;bottom:8px;width:5px;height:5px;border-radius:50%;background:var(--we-mini-muted)}
+.we-fab[data-playing=true] .we-fab__status{background:#34c77c;box-shadow:0 0 0 3px #34c77c18}
+.we-fab button:focus-visible{outline:3px solid #3989ff;outline-offset:3px}
+.we-fab__panel{position:absolute;box-sizing:border-box;width:min(312px,calc(100vw - 32px));overflow:auto;overscroll-behavior:contain;padding:14px;border-radius:26px;animation:we-mini-appear .16s ease-out;scrollbar-width:thin}
+.we-fab__header,.we-fab__tools,.we-fab__now,.we-fab__transport,.we-fab__footer{display:flex;align-items:center}
+.we-fab__header{justify-content:space-between;margin:-4px -4px 10px 4px;gap:8px}.we-fab__eyebrow{font-size:11px;letter-spacing:.04em;font-weight:600;color:var(--we-mini-muted)}
+.we-fab__tools{gap:2px}.we-fab__tools .we-fab__action{width:32px;height:32px;border-radius:12px}.we-fab__tools svg{width:16px;height:16px}
+.we-fab__action{display:grid;place-items:center;width:44px;height:44px;flex-shrink:0;border:0;border-radius:15px;padding:0;background:transparent;cursor:pointer;transition:background .15s,transform .15s}
+.we-fab__action:hover:not(:disabled),.we-fab__list-toggle:hover,.we-fab__item:hover{background:var(--we-mini-hover)}
+.we-fab__action:active:not(:disabled){transform:scale(.94)}.we-fab__action:disabled{opacity:.3;cursor:default}
+.we-fab__now{gap:12px;padding:0 4px}.we-fab__art,.we-fab__thumb{display:grid;place-items:center;overflow:hidden;flex-shrink:0;background:linear-gradient(135deg,#8899c833,#a396c522);border:1px solid var(--we-mini-line);color:var(--we-mini-muted)}
+.we-fab__art{width:48px;height:48px;border-radius:15px}.we-fab__art img,.we-fab__thumb img{width:100%;height:100%;object-fit:cover}
+.we-fab__info{min-width:0;flex:1}.we-fab__title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;font-weight:600;letter-spacing:-.02em}.we-fab__subtitle{font-size:11px;color:var(--we-mini-muted);margin-top:4px}
+.we-fab__transport{justify-content:center;gap:22px;padding:18px 0 16px}.we-fab__play{width:52px;height:52px;border-radius:50%;background:var(--we-mini-ink);color:var(--we-mini-solid)!important;box-shadow:0 4px 10px #0002}.we-fab__play:hover:not(:disabled){background:var(--we-mini-ink);filter:brightness(1.15)}
+.we-fab__footer{justify-content:space-between;border-top:1px solid var(--we-mini-line);padding-top:8px;gap:8px}.we-fab__footer>.we-fab__action{width:36px;height:36px}.we-fab__list-toggle{display:flex;align-items:center;gap:7px;min-height:36px;border:0;background:transparent;border-radius:12px;padding:6px 9px;cursor:pointer;font-size:12px!important}.we-fab__list-toggle svg{width:16px;height:16px}.we-fab__count{font-variant-numeric:tabular-nums;font-size:11px;color:var(--we-mini-muted)}
+.we-fab__list{display:flex;flex-direction:column;gap:3px;margin-top:10px;padding-top:10px;border-top:1px solid var(--we-mini-line);max-height:220px;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin}.we-fab__item{display:flex;align-items:center;gap:9px;min-height:48px;flex-shrink:0;width:100%;border:0;border-radius:13px;padding:6px;text-align:left;background:transparent;cursor:pointer}.we-fab__item[aria-pressed=true]{background:var(--we-mini-hover)}.we-fab__item>svg{width:16px;flex-shrink:0;color:#3989ff}.we-fab__thumb{width:32px;height:32px;border-radius:9px}.we-fab__thumb svg{width:16px}.we-fab__item-title{min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}.we-fab__empty{padding:12px;text-align:center;color:var(--we-mini-muted);font-size:12px}
+@keyframes we-mini-appear{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.we-fab__disc,.we-fab__panel{background:var(--we-mini-solid)}}
+@media(prefers-reduced-transparency:reduce),(prefers-contrast:more){.we-fab__disc,.we-fab__panel{background:var(--we-mini-solid);backdrop-filter:none;-webkit-backdrop-filter:none}}
+@media(prefers-reduced-motion:reduce){.we-fab__panel{animation:none}.we-fab button{transition:none}.we-fab__action:active:not(:disabled){transform:none}}
+
 
   /* Wallpaper layer: a fixed child of <body>, sunk BELOW the app frame.
      壁纸透明度（#82）作用在**媒体叶子**（.we-layer .we-media）上 —— 对
