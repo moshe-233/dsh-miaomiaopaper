@@ -1,4 +1,6 @@
-# dsh-plugin-wallpaper-engine
+# dsh-miaomiaopaper (喵喵壁纸管理器 🐾)
+
+> **本项目 Fork 自 [elysia395/dsh-wallpaper-engine](https://github.com/elysia395/dsh-wallpaper-engine)，由 @moshe233 二次开发与优化；已基于上游干净源码 v1.2.0 重建。** 感谢原作者 elysia395 的杰出工作！
 
 ![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg) ![node: >=18](https://img.shields.io/badge/node-%3E%3D18-5fa04e.svg)
 
@@ -17,7 +19,7 @@
 - [能做什么](#能做什么) · [更新前置条件](#更新前置条件) · [支持哪些壁纸类型](#支持哪些壁纸类型) · [工作原理](#工作原理)
 - [安装](#安装) · [使用](#使用) · [配置](#配置) · [与 dsh-better-sidebar 的兼容适配](#与-dsh-better-sidebar-的兼容适配) · [已知限制](#已知限制) · [开发 / 重建](#开发--重建) · [联系方式](#联系方式) · [致谢](#致谢)
 - 版本号、issue 号与性能数字见 [`docs/CHANGELOG.md`](docs/CHANGELOG.md)；升级前置条件见 [`docs/UPGRADING.md`](docs/UPGRADING.md)。
-- 📦 npm 包**不带 `docs/`**（随包的是运行期文件：`lib/**`、`cordis.patch.yml`、`scripts/prepare.mjs` 与三份 README）⇒ 上面这些 `docs/…` 链接在 npm / 插件市场里点不开，请到**源码仓库** <https://github.com/elysia395/dsh-wallpaper-engine> 的同名路径阅读。
+- 📦 npm 包**不带 `docs/`**（随包的是运行期文件：`lib/**`、`cordis.patch.yml`、`scripts/prepare.mjs` 与三份 README）⇒ 上面这些 `docs/…` 链接在 npm / 插件市场里点不开，请到**源码仓库** <https://github.com/moshe-233/dsh-miaomiaopaper> 的同名路径阅读（本 fork 的源码与完整文档都在那里；上游为 elysia395/dsh-wallpaper-engine）。
 
 ## 能做什么
 
@@ -82,7 +84,7 @@ Wallpaper Engine 本体把壁纸分四种类型；本插件支持其中的三类
 如果你只是想用这个插件，直接装 npm 上已发布的包即可：
 
 ```sh
-dsh plugin --profile web add dsh-plugin-wallpaper-engine
+dsh plugin --profile web add @moshe233/dsh-miaomiaopaper
 ```
 
 装完重启 `dsh web`，打开 **设置 → Wallpaper Engine** 就能用。

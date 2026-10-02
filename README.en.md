@@ -1,4 +1,6 @@
-# dsh-plugin-wallpaper-engine
+# dsh-miaomiaopaper (MiaoMiao Wallpaper Manager 🐾)
+
+> **This fork is based on [elysia395/dsh-wallpaper-engine](https://github.com/elysia395/dsh-wallpaper-engine), maintained and customized by @moshe233, rebuilt on the clean upstream source v1.2.0.** Thanks to the original author elysia395 for the outstanding work!
 
 ![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg) ![node: >=18](https://img.shields.io/badge/node-%3E%3D18-5fa04e.svg)
 
@@ -17,7 +19,7 @@ A DSH bundle that turns your **Wallpaper Engine** wallpapers into the **backgrou
 - [What it does](#what-it-does) · [Prerequisites for updating](#prerequisites-for-updating) · [Which wallpaper types are supported?](#which-wallpaper-types-are-supported) · [How it works](#how-it-works)
 - [Install](#install) · [Usage](#usage) · [Configuration](#configuration) · [dsh-better-sidebar compatibility](#dsh-better-sidebar-compatibility) · [Limitations](#limitations) · [Development / rebuild](#development--rebuild) · [Contact](#contact) · [Acknowledgments](#acknowledgments)
 - Version numbers, issue numbers and benchmark figures live in [`docs/CHANGELOG.md`](docs/CHANGELOG.md); update prerequisites in [`docs/UPGRADING.md`](docs/UPGRADING.md).
-- 📦 The npm package **does not ship `docs/`** (what ships is the runtime: `lib/**`, `cordis.patch.yml`, `scripts/prepare.mjs` and the three READMEs) ⇒ those `docs/…` links do not resolve on npm / in the plugin market; read them in the **source repository** <https://github.com/elysia395/dsh-wallpaper-engine> at the same paths.
+- 📦 The npm package **does not ship `docs/`** (what ships is the runtime: `lib/**`, `cordis.patch.yml`, `scripts/prepare.mjs` and the three READMEs) ⇒ those `docs/…` links do not resolve on npm / in the plugin market; read them in the **source repository** <https://github.com/moshe-233/dsh-miaomiaopaper> at the same paths (this fork's source and full docs live there; upstream is elysia395/dsh-wallpaper-engine).
 
 ## What it does
 
@@ -81,7 +83,7 @@ layer *behind* the app's three columns and registers a first-level "Wallpaper En
 If you simply want to use the plugin, install the published package from npm:
 
 ```sh
-dsh plugin --profile web add dsh-plugin-wallpaper-engine
+dsh plugin --profile web add @moshe233/dsh-miaomiaopaper
 ```
 
 Then restart `dsh web` and open **Settings → Wallpaper Engine**.

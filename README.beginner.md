@@ -1,11 +1,11 @@
-# dsh-plugin-wallpaper-engine · 小白向使用指南 / Beginner guide
+# dsh-miaomiaopaper · 小白向使用指南 / Beginner guide
 
 [English README](README.en.md) | [中文 README（完整版）](README.md) | [English section ↓](#english) | **小白向指南（你正在看）**
 
 > 这是一份**给完全没用过命令行的人**看的简化说明。
 > 想看完整的功能细节和技术原理，请看上面的「中文 README（完整版）」。
 >
-> 📦 **上手需要的东西全在本页**，不需要再跳出去。本插件的 npm 包**不带 `docs/`**（随包的是运行期文件与三份 README）—— 本页若提到 `docs/…`，请到**源码仓库** <https://github.com/elysia395/dsh-wallpaper-engine> 的同名路径阅读（那是上游仓库，本插件的源码与完整文档都在那里）。
+> 📦 **上手需要的东西全在本页**，不需要再跳出去。本插件的 npm 包**不带 `docs/`**（随包的是运行期文件与三份 README）—— 本页若提到 `docs/…`，请到**源码仓库** <https://github.com/moshe-233/dsh-miaomiaopaper> 的同名路径阅读（本 fork 的源码与完整文档都在那里；上游为 elysia395/dsh-wallpaper-engine）。
 
 ---
 
@@ -36,7 +36,7 @@
 打开命令提示符 / PowerShell，**复制粘贴**下面这一行，回车：
 
 ```sh
-dsh plugin --profile web add dsh-plugin-wallpaper-engine
+dsh plugin --profile web add @moshe233/dsh-miaomiaopaper
 ```
 
 看到安装成功的提示后，**重启 `dsh web`**（关掉重新打开就行）。
@@ -105,7 +105,7 @@ Mac / Linux：`~/.dsh-wallpaper-engine/config.json`）—— 重启、换端口�
 
 ### 常见问题（FAQ）
 
-> **装不上怎么办？** 本节的条目是**使用**层面的问题。安装失败（pnpm 报错，如 `ERR_PNPM_UNEXPECTED_VIRTUAL_STORE` / `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`）先试这一条：**用已发布版本安装**（`dsh plugin --profile web add dsh-plugin-wallpaper-engine`，就是本页第 1 步的写法），它不涉及 `github:` / `link:` 来源的构建脚本与虚拟存储差异。逐步处置见 [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md)（**在 GitHub 源码仓库里**，npm 包不带 `docs/`）。
+> **装不上怎么办？** 本节的条目是**使用**层面的问题。安装失败（pnpm 报错，如 `ERR_PNPM_UNEXPECTED_VIRTUAL_STORE` / `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`）先试这一条：**用已发布版本安装**（`dsh plugin --profile web add @moshe233/dsh-miaomiaopaper`，就是本页第 1 步的写法），它不涉及 `github:` / `link:` 来源的构建脚本与虚拟存储差异。逐步处置见 [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md)（**在 GitHub 源码仓库里**，npm 包不带 `docs/`）。
 
 **1. 打开选择壁纸，里面是空的 / 一张都没有？**
 - 确认 Wallpaper Engine 装好并至少下载过一张壁纸。
@@ -182,7 +182,7 @@ macOS 上没有 **Wallpaper Engine 客户端**，所以没有 Steam 壁纸库可
 > A simplified walkthrough for people who have **never used a command line**.
 > For full feature details and how it works, see the [English README](README.en.md).
 >
-> 📦 **Everything you need to get started is on this page** — no need to jump elsewhere. The npm package **does not ship `docs/`** (what ships is the runtime and the three READMEs), so if this page mentions `docs/…`, read it in the **source repository** <https://github.com/elysia395/dsh-wallpaper-engine> (the upstream repo — the plugin's source and full documentation live there).
+> 📦 **Everything you need to get started is on this page** — no need to jump elsewhere. The npm package **does not ship `docs/`** (what ships is the runtime and the three READMEs), so if this page mentions `docs/…`, read it in the **source repository** <https://github.com/moshe-233/dsh-miaomiaopaper> (this fork's source and full documentation live there; upstream is elysia395/dsh-wallpaper-engine).
 
 ### What is this?
 
@@ -209,7 +209,7 @@ In one sentence: **it puts your Steam Wallpaper Engine wallpapers behind the Dee
 Open Command Prompt / PowerShell, **copy-paste** this line and press Enter:
 
 ```sh
-dsh plugin --profile web add dsh-plugin-wallpaper-engine
+dsh plugin --profile web add @moshe233/dsh-miaomiaopaper
 ```
 
 Once it reports success, **restart `dsh web`** (close it and open it again).
@@ -276,7 +276,7 @@ macOS / Linux: `~/.dsh-wallpaper-engine/config.json`) — restarts, port changes
 
 ### FAQ
 
-> **Can't install it?** The entries below are **usage** questions. For install failures (pnpm errors such as `ERR_PNPM_UNEXPECTED_VIRTUAL_STORE` / `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`), try this first: **install the published version** (`dsh plugin --profile web add dsh-plugin-wallpaper-engine`, exactly what step 1 above does) — it avoids the `github:` / `link:` sources' build-script and virtual-store pitfalls. Step-by-step recovery is in [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) (**in the GitHub source repo**; the npm package does not include `docs/`).
+> **Can't install it?** The entries below are **usage** questions. For install failures (pnpm errors such as `ERR_PNPM_UNEXPECTED_VIRTUAL_STORE` / `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`), try this first: **install the published version** (`dsh plugin --profile web add @moshe233/dsh-miaomiaopaper`, exactly what step 1 above does) — it avoids the `github:` / `link:` sources' build-script and virtual-store pitfalls. Step-by-step recovery is in [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) (**in the GitHub source repo**; the npm package does not include `docs/`).
 
 **1. The wallpaper picker is empty — not a single wallpaper?**
 - Make sure Wallpaper Engine is installed and you have downloaded at least one wallpaper.
