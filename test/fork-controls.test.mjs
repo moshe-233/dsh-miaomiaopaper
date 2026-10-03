@@ -216,12 +216,20 @@ test('native footer registration forwards host props and keeps compact button se
   cleanup();dispose();
 });
 
-test('footer styles share state geometry and only compact mode hides the label',()=>{
+test('footer styles are transparent like the host entries and share state geometry',()=>{
   const css=read('../src/styles.js').split('/* A self-contained glass surface:')[0];
-  assert.ok(css.includes('height:36px'));assert.ok(css.includes('width:100%'));
+  // Matches the host's own footer entries (dsh-context .lc-ov-entry): no fill, no
+  // border, host tokens for colour, a fill only on hover.
+  assert.ok(css.includes('background:transparent'));
+  assert.ok(/button\.we-composer-toggle\{[^}]*border:0/.test(css),'borderless like the host entries');
+  assert.ok(css.includes('--we-composer-ink:var(--dsw-alias-label-primary'),'label colour follows the host palette');
+  assert.ok(css.includes('background:var(--we-composer-hover)'));
+  assert.ok(css.includes('height:42px'));assert.ok(css.includes('width:100%'));
   assert.ok(css.includes('[data-wide=false] .we-composer-toggle__label{display:none}'));
-  assert.ok(css.includes('body[data-ds-dark-theme] button.we-composer-toggle[data-collapsed=true]'));
+  assert.ok(css.includes('border-radius:50%'),'rail uses a round hit area like .lc-ov-entry-rail');
   assert.ok(css.includes('@media(forced-colors:active)'));
+  // No per-theme colour override is needed: the host tokens already adapt.
+  assert.ok(!css.includes('body[data-ds-dark-theme] button.we-composer-toggle'));
   for(const match of css.matchAll(/button\.we-composer-toggle\[data-collapsed=true\]\{([^}]+)\}/g)){
     assert.doesNotMatch(match[1],/(?:^|;)(?:width|height|padding|margin|border-radius):/);
   }
