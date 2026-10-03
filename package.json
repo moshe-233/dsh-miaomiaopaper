@@ -1,6 +1,6 @@
 {
   "name": "@moshe233/dsh-miaomiaopaper",
-  "version": "1.2.1-miao",
+  "version": "1.2.2-miao",
   "description": "dsh-miaomiaopaper: 喵喵壁纸管理器 — Wallpaper Engine backgrounds & liquid glass for DSH web GUI (Rebuilt on clean upstream elysia395/dsh-wallpaper-engine v1.2.0).",
   "type": "module",
   "engines": {
