@@ -224,7 +224,10 @@ test('footer styles are transparent like the host entries and share state geomet
   assert.ok(/button\.we-composer-toggle\{[^}]*border:0/.test(css),'borderless like the host entries');
   assert.ok(css.includes('--we-composer-ink:var(--dsw-alias-label-primary'),'label colour follows the host palette');
   assert.ok(css.includes('background:var(--we-composer-hover)'));
-  assert.ok(css.includes('height:42px'));assert.ok(css.includes('width:100%'));
+  assert.ok(css.includes('height:42px'));
+  // Same outer geometry as .lc-ov-entry: bleed 2px each side so the icon lines up.
+  assert.ok(css.includes('width:calc(100% + 4px)'));
+  assert.ok(css.includes('margin:0 -2px'));
   assert.ok(css.includes('[data-wide=false] .we-composer-toggle__label{display:none}'));
   assert.ok(css.includes('border-radius:50%'),'rail uses a round hit area like .lc-ov-entry-rail');
   assert.ok(css.includes('@media(forced-colors:active)'));
